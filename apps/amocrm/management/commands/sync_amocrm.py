@@ -28,7 +28,7 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         from apps.amocrm.models import AmoCRMToken
         from apps.amocrm.services import AmoCRMService
-        from apps.amocrm.views import _sync_all_now
+        from apps.amocrm.sync import sync_all_now
 
         code = options.get('code')
 
@@ -68,7 +68,7 @@ class Command(BaseCommand):
         self.stdout.write(self.style.WARNING("\n🔄 Ma'lumotlar sinxronlash boshlandi...\n"))
 
         try:
-            result = _sync_all_now()
+            result = sync_all_now()
 
             self.stdout.write(self.style.SUCCESS(
                 f"\n✅ Sinxronlash muvaffaqiyatli tugadi!\n"

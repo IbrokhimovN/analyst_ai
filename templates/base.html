@@ -24,7 +24,7 @@
     <meta name="csrf-token" content="{{ csrf_token }}">
     {% block extra_head %}{% endblock %}
 </head>
-<body>
+<body class="{% block body_class %}{% endblock %}">
     {% csrf_token %}
     <!-- Sidebar Navigation -->
     <aside class="sidebar" id="sidebar">

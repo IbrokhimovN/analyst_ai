@@ -1,496 +1,585 @@
 {% extends "base.html" %}
+{% load humanize %}
 
-{% block title %}SAVDO BO'LIMI — INTERAKTIV DASHBOARD{% endblock %}
+{% block title %}SAVDO DASHBOARD{% endblock %}
+{% block body_class %}dashboard-page{% endblock %}
+
 {% block page_title %}
-<div class="dashboard-title-area">
-    <div class="dashboard-title-left">
-        <span class="dashboard-icon">📊</span>
-        <div>
-            <h1 class="dashboard-main-title">SAVDO BO'LIMI — INTERAKTIV DASHBOARD</h1>
-            <p class="dashboard-subtitle">Menejerlar kesimida Call, Konversiya va Sotuvlar hisobot tizimi</p>
-            <!-- CRM source stats bar -->
-            <!-- <div class="crm-stats-bar" style="margin-top:8px;">
-                <a href="?" class="crm-stat-badge crm-stat-badge-all {% if current_source == 'all' %}crm-active{% endif %}">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="13" height="13">
-                        <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
-                        <rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
-                    </svg>
-                    Barchasi <span class="crm-stat-count">{{ stats.total_leads|default:"0" }}</span>
-                </a>
-                <a href="?source=amocrm" class="crm-stat-badge crm-stat-badge-amo {% if current_source == 'amocrm' %}crm-active{% endif %}">
-                    <span class="crm-dot crm-dot-amo"></span>
-                    AmoCRM <span class="crm-stat-count">{{ amocrm_count|default:"0" }}</span>
-                </a>
-                <a href="?source=bitrix" class="crm-stat-badge crm-stat-badge-btx {% if current_source == 'bitrix' %}crm-active{% endif %}">
-                    <span class="crm-dot crm-dot-btx"></span>
-                    Bitrix24 <span class="crm-stat-count">{{ bitrix_count|default:"0" }}</span>
-                </a>
-            </div> -->
-        </div>
+<div class="dash-head">
+    <div class="dash-head-titles">
+        <h1 class="dash-head-name">Savdo Dashboard</h1>
+        <span class="dash-head-date">📅 {{ current_date|date:"d M Y, l" }}</span>
     </div>
-    <div class="dashboard-title-right">
-        <div class="info-badge"><span class="info-icon">📅</span> Sana: <strong>{{ current_date|date:"d F Y" }}</strong></div>
-        <div class="info-badge"><span class="info-icon">👥</span> Jami menejerlar: <strong>{{ manager_count }}</strong></div>
-        <div class="info-badge"><span class="info-icon">💰</span> Valyuta: <strong>UZS</strong></div>
+    <div class="dash-period">
+        <button type="button" class="dperiod {% if current_period == 'day' %}dperiod-on{% endif %}"   onclick="setPeriod('day')">Kunlik</button>
+        <button type="button" class="dperiod {% if current_period == 'week' %}dperiod-on{% endif %}"  onclick="setPeriod('week')">Haftalik</button>
+        <button type="button" class="dperiod {% if current_period == 'month' %}dperiod-on{% endif %}" onclick="setPeriod('month')">Oylik</button>
+        <button type="button" class="dperiod {% if current_period == 'all' %}dperiod-on{% endif %}"   onclick="setPeriod('all')">Barchasi</button>
     </div>
 </div>
 {% endblock %}
 
 {% block content %}
+<div class="dash">
 
-<!-- ==================== SECTION 1: KUNLIK UMUMIY KO'RSATKICHLAR ==================== -->
-<div class="section-card">
-    <div class="section-header">
-        <span class="section-icon">⚡</span>
-        <h2 class="section-title">KUNLIK UMUMIY KO'RSATKICHLAR</h2>
+    <!-- ==================== KPI CARDS ==================== -->
+    <div class="dash-kpis">
+        <div class="dash-kpi">
+            <div class="dash-kpi-top">
+                <span class="dash-kpi-label">Umumiy lidlar</span>
+                <span class="dash-kpi-icon ki-green">👥</span>
+            </div>
+            <div class="dash-kpi-value">{{ stats.total_leads|default:0|intcomma }}</div>
+            <div class="dash-kpi-sub sub-up">↑ {{ stats.new_leads|default:0 }} ta — oxirgi 30 kun</div>
+        </div>
+        <div class="dash-kpi">
+            <div class="dash-kpi-top">
+                <span class="dash-kpi-label">Call soni</span>
+                <span class="dash-kpi-icon ki-blue">📞</span>
+            </div>
+            <div class="dash-kpi-value">{{ funnel.1.count|default:0|intcomma }}</div>
+            <div class="dash-kpi-sub sub-up">↑ {{ funnel.1.pct|default:0 }}% lidlardan</div>
+        </div>
+        <div class="dash-kpi">
+            <div class="dash-kpi-top">
+                <span class="dash-kpi-label">Conversation</span>
+                <span class="dash-kpi-icon ki-gold">💬</span>
+            </div>
+            <div class="dash-kpi-value">{{ funnel.2.count|default:0|intcomma }}</div>
+            <div class="dash-kpi-sub sub-gold">{{ conversions.0.pct|default:0 }}% (Call → Conversation)</div>
+        </div>
+        <div class="dash-kpi">
+            <div class="dash-kpi-top">
+                <span class="dash-kpi-label">Sotuvlar</span>
+                <span class="dash-kpi-icon ki-orange">🛒</span>
+            </div>
+            <div class="dash-kpi-value">{{ stats.won_count|default:0|intcomma }}</div>
+            <div class="dash-kpi-sub sub-orange">{{ conversions.1.pct|default:0 }}% (Convo → Sale)</div>
+        </div>
+        <div class="dash-kpi">
+            <div class="dash-kpi-top">
+                <span class="dash-kpi-label">Umumiy tushum</span>
+                <span class="dash-kpi-icon ki-green">💰</span>
+            </div>
+            <div class="dash-kpi-value dash-kpi-value-sm">{{ stats.total_revenue|default:0|floatformat:0|intcomma }}</div>
+            <div class="dash-kpi-sub sub-up">O'rtacha chek: {{ finance.avg_deal|default:0|floatformat:0|intcomma }}</div>
+        </div>
     </div>
-    <div class="kpi-top-grid" id="kpi-top-grid">
-        <div class="kpi-top-card kpi-blue">
-            <div class="kpi-top-label">📋 Jami Leadlar</div>
-            <div class="kpi-top-value" id="val-total-leads">{{ stats.total_leads|default:"0" }}</div>
-            <div class="kpi-top-sub kpi-sub-positive">+{{ stats.new_leads|default:"0" }}% kechagiga nisbatan</div>
-        </div>
-        <div class="kpi-top-card kpi-orange">
-            <div class="kpi-top-label">📞 Jami Call</div>
-            <div class="kpi-top-value" id="val-total-calls">{{ stats.won_count|default:"0" }}</div>
-            <div class="kpi-top-sub">Call rate: {{ stats.conversion_rate|default:"0" }}%</div>
-        </div>
-        <div class="kpi-top-card kpi-green">
-            <div class="kpi-top-badge">Conversation</div>
-            <div class="kpi-top-value" id="val-conversations">{{ stats.won_count|default:"0" }}</div>
-            <div class="kpi-top-sub">Conv. %: {{ stats.conversion_rate|default:"0" }}%</div>
-        </div>
-        <div class="kpi-top-card kpi-yellow">
-            <div class="kpi-top-badge kpi-badge-yellow">Sotuvlar</div>
-            <div class="kpi-top-value" id="val-sales">{{ stats.won_count|default:"0" }}</div>
-            <div class="kpi-top-sub">Sales Conv: {{ stats.conversion_rate|default:"0" }}%</div>
-        </div>
-        <div class="kpi-top-card kpi-emerald">
-            <div class="kpi-top-badge kpi-badge-emerald">Tushum</div>
-            <div class="kpi-top-value kpi-value-lg" id="val-revenue">{{ stats.monthly_revenue|default:"0"|floatformat:0 }}</div>
-            <div class="kpi-top-sub">O'rtacha chek: {{ stats.avg_deal_size|default:"0"|floatformat:0 }}</div>
-        </div>
-    </div>
-</div>
 
-<!-- ==================== SECTION 2: VORONKASI + MENEJERLAR REYTINGI ==================== -->
-<div class="dual-section-grid">
-    <!-- Savdo Voronkasi (Funnel) -->
-    <div class="section-card">
-        <div class="section-header">
-            <span class="section-icon">🔻</span>
-            <h2 class="section-title">SAVDO VORONKASI (Funnel)</h2>
+    <!-- ==================== FUNNEL + CONVERSIONS ==================== -->
+    <div class="dash-row dash-row-2-1">
+        <!-- Savdo voronkasi -->
+        <div class="dash-card">
+            <div class="dash-card-head">
+                <span class="dch-icon">🔻</span>
+                <h2 class="dch-title">Savdo voronkasi (Funnel)</h2>
+                <button type="button" class="dash-toggle" data-card="funnel"
+                        onclick="toggleCardView('funnel', this)">📊 Grafik</button>
+            </div>
+            <!-- Jadval ko'rinishi -->
+            <div class="dash-view" id="funnel-table-view">
+                <div class="dash-funnel">
+                    <div class="dash-funnel-graphic">
+                        {% for stage in funnel %}
+                        <div class="dash-funnel-seg seg{{ forloop.counter }}" style="--seg-color:{{ stage.color }}">
+                            <span class="dfs-label">{{ stage.name }}</span>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    <table class="dash-funnel-table">
+                        <thead>
+                            <tr><th>Stage</th><th>Soni</th><th>%</th></tr>
+                        </thead>
+                        <tbody>
+                            {% for stage in funnel %}
+                            <tr>
+                                <td><span class="dft-dot" style="background:{{ stage.color }}"></span>{{ stage.name }}</td>
+                                <td class="dft-num">{{ stage.count|intcomma }}</td>
+                                <td class="dft-pct">{{ stage.pct }}%</td>
+                            </tr>
+                            {% empty %}
+                            <tr><td colspan="3" class="dash-empty">Ma'lumot yo'q</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <!-- Grafik ko'rinishi (bar chart) -->
+            <div class="dash-view dash-chart-area" id="funnel-chart-view" hidden>
+                <canvas id="funnelBarChart"></canvas>
+            </div>
         </div>
-        <div class="funnel-section">
-            <div class="funnel-data-list">
-                {% for item in funnel_data %}
-                <div class="funnel-row">
-                    <span class="funnel-stage-name">{{ item.status_name }}</span>
-                    <span class="funnel-stage-count">{{ item.count }}</span>
+
+        <!-- Asosiy konversiyalar -->
+        <div class="dash-card">
+            <div class="dash-card-head">
+                <span class="dch-icon">📈</span>
+                <h2 class="dch-title">Asosiy konversiyalar</h2>
+            </div>
+            <div class="dash-rings">
+                {% for c in conversions %}
+                <div class="dash-ring-item">
+                    <div class="dash-ring" style="--pct:{{ c.pct }}; --ring-color:{{ c.color }}">
+                        <span class="dash-ring-val">{{ c.pct }}%</span>
+                    </div>
+                    <div class="dash-ring-label">{{ c.label }}</div>
+                    <div class="dash-ring-sub">{{ c.num|intcomma }} / {{ c.den|intcomma }}</div>
                 </div>
                 {% empty %}
-                <div class="funnel-row">
-                    <span class="funnel-stage-name">Lead</span>
-                    <span class="funnel-stage-count">0</span>
-                </div>
+                <div class="dash-empty">Ma'lumot yo'q</div>
                 {% endfor %}
             </div>
-            <div class="funnel-visual" id="funnel-visual">
-                {% for item in funnel_data %}
-                <div class="funnel-bar-wrapper">
-                    <div class="funnel-progress-bar" data-count="{{ item.count }}" data-total="{{ stats.total_leads|default:1 }}">
-                        <span class="funnel-pct"></span>
+        </div>
+    </div>
+
+    <!-- ==================== MANAGERS + FINANCE ==================== -->
+    <div class="dash-row dash-row-2-1">
+        <!-- Menejerlar reytingi -->
+        <div class="dash-card">
+            <div class="dash-card-head">
+                <span class="dch-icon">🏆</span>
+                <h2 class="dch-title">Menejerlar reytingi</h2>
+                <button type="button" class="dash-toggle" data-card="managers"
+                        onclick="toggleCardView('managers', this)">🥧 Grafik</button>
+            </div>
+            <!-- Jadval ko'rinishi -->
+            <div class="dash-view dash-table-wrap" id="managers-table-view">
+                <table class="dash-table">
+                    <thead>
+                        <tr>
+                            <th>#</th><th>Menejer</th><th>Lid</th><th>Call</th>
+                            <th>Conv.</th><th>Sotuv</th><th>Convo %</th>
+                            <th>Sale %</th><th>Lid→Sale</th><th>Tushum</th><th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for m in top_managers %}
+                        <tr>
+                            <td>{{ forloop.counter }}</td>
+                            <td class="dt-name">{{ m.manager_name }}</td>
+                            <td>{{ m.total_leads }}</td>
+                            <td>{{ m.calls }}</td>
+                            <td>{{ m.conversations }}</td>
+                            <td><strong>{{ m.won }}</strong></td>
+                            <td class="dt-blue">{{ m.convo_rate }}%</td>
+                            <td class="dt-green">{{ m.sale_rate }}%</td>
+                            <td class="dt-red">{{ m.lead_to_sale }}%</td>
+                            <td>{{ m.revenue|floatformat:0|intcomma }}</td>
+                            <td>
+                                {% if m.conversion_rate >= 25 %}
+                                <span class="dash-pill pill-top">🟢 TOP</span>
+                                {% elif m.conversion_rate >= 18 %}
+                                <span class="dash-pill pill-mid">🟡 O'rtacha</span>
+                                {% else %}
+                                <span class="dash-pill pill-low">🔴 Past</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="11" class="dash-empty">Menejerlar ma'lumoti yo'q</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <!-- Grafik ko'rinishi (pie chart) -->
+            <div class="dash-view dash-chart-area" id="managers-chart-view" hidden>
+                <canvas id="managersPieChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Moliy ko'rsatkichlar -->
+        <div class="dash-card">
+            <div class="dash-card-head">
+                <span class="dch-icon">💰</span>
+                <h2 class="dch-title">Moliy ko'rsatkichlar</h2>
+            </div>
+            <div class="dash-finance">
+                <div class="dash-fin-box">
+                    <div class="dfb-value">{{ finance.total_revenue|default:0|floatformat:0|intcomma }}</div>
+                    <div class="dfb-label">Umumiy tushum</div>
+                </div>
+                <div class="dash-fin-box">
+                    <div class="dfb-value">{{ finance.avg_deal|default:0|floatformat:0|intcomma }}</div>
+                    <div class="dfb-label">O'rtacha chek</div>
+                </div>
+                <div class="dash-fin-box">
+                    <div class="dfb-value">{{ finance.lead_value|default:0|intcomma }}</div>
+                    <div class="dfb-label">1 lid qiymati <span class="dfb-hint">Tushum / Lid</span></div>
+                </div>
+                <div class="dash-fin-box">
+                    <div class="dfb-value">{{ finance.sale_value|default:0|intcomma }}</div>
+                    <div class="dfb-label">1 sale qiymati <span class="dfb-hint">Tushum / Sotuv</span></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== DAILY DYNAMICS + LOSS REASONS ==================== -->
+    <div class="dash-row dash-row-2-1">
+        <!-- Kunlik dinamika -->
+        <div class="dash-card">
+            <div class="dash-card-head">
+                <span class="dch-icon">📊</span>
+                <h2 class="dch-title">Kunlik dinamika</h2>
+            </div>
+            <div class="dash-chart-area">
+                <canvas id="dailyDynamicsChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Sotib olmadi (sabablar) -->
+        <div class="dash-card">
+            <div class="dash-card-head">
+                <span class="dch-icon">❌</span>
+                <h2 class="dch-title">Sotib olmadi (sabablar)</h2>
+            </div>
+            <div class="dash-reasons">
+                {% for r in loss_reasons %}
+                <div class="dash-reason">
+                    <div class="dash-reason-head">
+                        <span class="dr-name">{{ r.reason }}</span>
+                        <span class="dr-count">{{ r.count }}</span>
+                    </div>
+                    <div class="dash-reason-bar">
+                        <span class="dr-fill" data-count="{{ r.count }}"></span>
                     </div>
                 </div>
+                {% empty %}
+                <div class="dash-empty">Yutqazish sabablari kiritilmagan</div>
                 {% endfor %}
             </div>
         </div>
-        <div class="funnel-alert">
-            <span class="alert-icon">❗</span>
-            <div class="alert-text">
-                <strong>Asosiy yo'qotish:</strong> Call → Conversation bosqichi
-                <br>Non-conversation: <span class="text-danger">{{ stats.lost_count|default:"0" }} ta</span> — Leak Zone ❗
+    </div>
+
+    <!-- ==================== FOLLOW-UP + INSIGHT + BEST DAYS ==================== -->
+    <div class="dash-row dash-row-3">
+        <!-- Qoldirilganlar -->
+        <div class="dash-card">
+            <div class="dash-card-head">
+                <span class="dch-icon">📋</span>
+                <h2 class="dch-title">Qoldirilganlar (Follow-up)</h2>
+            </div>
+            <div class="dash-table-wrap">
+                <table class="dash-table">
+                    <thead>
+                        <tr><th>Menejer</th><th>Qoldirildi</th><th>Qayta yopildi</th><th>Konversiya</th></tr>
+                    </thead>
+                    <tbody>
+                        {% for m in followup %}
+                        <tr>
+                            <td class="dt-name">{{ m.manager_name }}</td>
+                            <td>{{ m.lost }}</td>
+                            <td>{{ m.won }}</td>
+                            <td class="dt-green">{{ m.conversion_rate }}%</td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="4" class="dash-empty">Ma'lumot yo'q</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Insight -->
+        <div class="dash-card">
+            <div class="dash-card-head">
+                <span class="dch-icon">💡</span>
+                <h2 class="dch-title">Insight</h2>
+            </div>
+            <div class="dash-insights">
+                {% for ins in insights %}
+                <div class="dash-insight ins-{{ ins.type }}">
+                    <span class="dash-insight-mark"></span>
+                    <div>
+                        <div class="dash-insight-title">{{ ins.title }}</div>
+                        <div class="dash-insight-text">{{ ins.text }}</div>
+                    </div>
+                </div>
+                {% empty %}
+                <div class="dash-empty">Insight mavjud emas</div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Eng yaxshi kunlar -->
+        <div class="dash-card">
+            <div class="dash-card-head">
+                <span class="dch-icon">📅</span>
+                <h2 class="dch-title">Eng yaxshi kunlar</h2>
+            </div>
+            <div class="dash-table-wrap">
+                <table class="dash-table">
+                    <thead>
+                        <tr><th>Kun</th><th>Lid</th><th>Sotuv</th><th>Conversion</th></tr>
+                    </thead>
+                    <tbody>
+                        {% for d in best_days %}
+                        <tr>
+                            <td class="dt-name">{{ d.day }}</td>
+                            <td>{{ d.leads }}</td>
+                            <td>{{ d.won }}</td>
+                            <td class="dt-green">{{ d.conversion }}%</td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="4" class="dash-empty">Ma'lumot yo'q</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
             </div>
         </div>
     </div>
 
-    <!-- Menejerlar Reytingi -->
-    <div class="section-card">
-        <div class="section-header">
-            <span class="section-icon">🏆</span>
-            <h2 class="section-title">MENEJERLAR REYTINGI (Sales Conversion)</h2>
-        </div>
-        <div class="table-responsive">
-            <table class="rating-table">
-                <thead>
-                    <tr>
-                        <th>#</th>
-                        <th>Menejer</th>
-                        <th>Lead → Sale</th>
-                        <th>Conversion %</th>
-                        <th>Sotuv</th>
-                        <th>Tushum</th>
-                        <th>Status</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for mgr in top_managers %}
-                    <tr>
-                        <td>{{ forloop.counter }}</td>
-                        <td class="manager-name-cell">{{ mgr.manager_name }}</td>
-                        <td>{{ mgr.total_leads }} → {{ mgr.won }}</td>
-                        <td><strong>{{ mgr.conversion_rate }}%</strong></td>
-                        <td>{{ mgr.won }}</td>
-                        <td>{{ mgr.revenue|floatformat:0 }}</td>
-                        <td>
-                            {% if mgr.conversion_rate >= 25 %}
-                            <span class="status-pill status-top">🟢 TOP</span>
-                            {% elif mgr.conversion_rate >= 20 %}
-                            <span class="status-pill status-good">🟢 Yaxshi</span>
-                            {% elif mgr.conversion_rate >= 15 %}
-                            <span class="status-pill status-mid">🟡 O'rtacha</span>
-                            {% elif mgr.conversion_rate >= 10 %}
-                            <span class="status-pill status-past">🟠 Past</span>
-                            {% else %}
-                            <span class="status-pill status-low">🔴 Muammo</span>
-                            {% endif %}
-                        </td>
-                    </tr>
-                    {% empty %}
-                    <tr><td colspan="7" class="empty-cell">Ma'lumot yo'q</td></tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-        <div class="coach-insight">
-            <span class="insight-icon">🏅</span>
-            <div class="insight-text">
-                <strong>Coach Insight:</strong><br>
-                TOP closers. Script va uslubni qolgan jamoaga o'rgating.
+    <!-- ==================== AI TAHLIL ==================== -->
+    <div class="dash-ai">
+        <div class="dash-ai-bar">
+            <div class="dash-ai-info">
+                <span class="dash-ai-icon">🤖</span>
+                <div>
+                    <div class="dash-ai-name">AI tahlil</div>
+                    <div class="dash-ai-desc">Joriy ko'rsatkichlar bo'yicha sun'iy intellekt xulosasi</div>
+                </div>
             </div>
+            <button type="button" class="dash-ai-btn" id="ai-analyze-btn" onclick="runAiAnalysis()">
+                AI tahlil qilish
+            </button>
         </div>
+        <div class="dash-ai-result" id="ai-result" hidden></div>
     </div>
+
 </div>
 
-<!-- ==================== SECTION 3: ASOSIY KPI METRIKALAR ==================== -->
-<div class="section-card">
-    <div class="section-header">
-        <span class="section-icon">📊</span>
-        <h2 class="section-title">ASOSIY KPI METRIKALAR</h2>
-    </div>
-    <div class="kpi-metrics-grid">
-        <div class="kpi-metric-card">
-            <div class="kpi-metric-icon">📞</div>
-            <div class="kpi-metric-label">Conversion %</div>
-            <div class="kpi-metric-value kpi-metric-big">{{ stats.conversion_rate|default:"0" }}%</div>
-            <div class="kpi-metric-bench">Benchmark: 25-35%</div>
-        </div>
-        <div class="kpi-metric-card">
-            <div class="kpi-metric-icon">💰</div>
-            <div class="kpi-metric-label">Sales Conversion</div>
-            <div class="kpi-metric-value kpi-metric-big">{{ stats.conversion_rate|default:"0" }}%</div>
-            <div class="kpi-metric-bench">Benchmark: 20-30%</div>
-        </div>
-        <div class="kpi-metric-card">
-            <div class="kpi-metric-icon">📈</div>
-            <div class="kpi-metric-label">Lead → Sale Conv.</div>
-            <div class="kpi-metric-value kpi-metric-big">{{ stats.conversion_rate|default:"0" }}%</div>
-            <div class="kpi-metric-bench kpi-bench-warn">Har 16-leaddan 1 sotuv</div>
-        </div>
-        <div class="kpi-metric-card">
-            <div class="kpi-metric-icon">🔥</div>
-            <div class="kpi-metric-label">O'rtacha Check</div>
-            <div class="kpi-metric-value kpi-metric-big">{{ stats.avg_deal_size|default:"0"|floatformat:0 }}</div>
-            <div class="kpi-metric-bench">O'rtacha qiymat</div>
-        </div>
-        <div class="kpi-metric-card">
-            <div class="kpi-metric-icon">📦</div>
-            <div class="kpi-metric-label">Qoldirildi bazasi</div>
-            <div class="kpi-metric-value kpi-metric-big">{{ stats.lost_count|default:"0" }} ta</div>
-            <div class="kpi-metric-bench kpi-bench-good">Potensial: +30-40%</div>
-        </div>
-    </div>
-</div>
-
-<!-- ==================== SECTION 4: PUL KO'RSATKICHLARI + FOLLOW-UP ==================== -->
-<div class="dual-section-grid">
-    <!-- Pul ko'rsatkichlari -->
-    <div class="section-card">
-        <div class="section-header">
-            <span class="section-icon">💸</span>
-            <h2 class="section-title">PUL KO'RSATKICHLARI</h2>
-        </div>
-        <div class="finance-list">
-            <div class="finance-row">
-                <span class="finance-label">Umumiy tushum</span>
-                <span class="finance-value">{{ stats.total_revenue|default:"0"|floatformat:0 }} so'm</span>
-            </div>
-            <div class="finance-row">
-                <span class="finance-label">O'rtacha chek</span>
-                <span class="finance-value">{{ stats.avg_deal_size|default:"0"|floatformat:0 }} so'm</span>
-            </div>
-            <div class="finance-row">
-                <span class="finance-label">1 Lead qiymati</span>
-                <span class="finance-value">{{ stats.lead_value|default:"0"|floatformat:0 }} so'm</span>
-            </div>
-            <div class="finance-row">
-                <span class="finance-label">1 Sale qiymati</span>
-                <span class="finance-value">{{ stats.sale_value|default:"0"|floatformat:0 }} so'm</span>
-            </div>
-            <div class="finance-row finance-row-highlight">
-                <span class="finance-label">Kutilayotgan oylik</span>
-                <span class="finance-value">~{{ stats.monthly_revenue|default:"0"|floatformat:0 }} so'm</span>
-            </div>
-        </div>
-    </div>
-
-    <!-- Follow-up tracking -->
-    <div class="section-card">
-        <div class="section-header">
-            <span class="section-icon">🔄</span>
-            <h2 class="section-title">FOLLOW-UP TRACKING</h2>
-        </div>
-        <div class="table-responsive">
-            <table class="followup-table">
-                <thead>
-                    <tr>
-                        <th>Menejer</th>
-                        <th>Qoldirildi</th>
-                        <th>Qayta yopildi</th>
-                        <th>Conversion</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for mgr in top_managers %}
-                    <tr>
-                        <td>{{ mgr.manager_name }}</td>
-                        <td>{{ mgr.lost }}</td>
-                        <td>{{ mgr.won }}</td>
-                        <td class="text-success-bold">{{ mgr.conversion_rate }}%</td>
-                    </tr>
-                    {% empty %}
-                    <tr><td colspan="4" class="empty-cell">Ma'lumot yo'q</td></tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-        <div class="followup-alert">
-            <span class="alert-icon">📢</span>
-            <span class="alert-text">Qoldirilgan bazadan 30-50% qo'shimcha sotuv olish mumkin!</span>
-        </div>
-    </div>
-</div>
-
-<!-- ==================== SECTION 5: HAFTALIK TREND ==================== -->
-<div class="section-card">
-    <div class="section-header">
-        <span class="section-icon">📈</span>
-        <h2 class="section-title">HAFTALIK TREND (7 kunlik)</h2>
-    </div>
-    <div class="trend-section">
-        <div class="trend-chart-area">
-            <canvas id="weeklyTrendChart"></canvas>
-        </div>
-        <div class="trend-summary">
-            <div class="trend-summary-title">📊 Haftalik jami:</div>
-            <div class="trend-item trend-blue">
-                <span class="trend-dot blue"></span> Lead: <strong id="trend-total-leads">{{ stats.total_leads|default:"0" }} ta</strong>
-            </div>
-            <div class="trend-item trend-green">
-                <span class="trend-dot green"></span> Sotuv: <strong id="trend-total-sales">{{ stats.won_count|default:"0" }} ta</strong>
-            </div>
-            <div class="trend-item">
-                O'rtacha conv.: <strong>{{ stats.conversion_rate|default:"0" }}%</strong>
-            </div>
-            <div class="trend-item trend-growth">
-                📈 O'sish: <strong>+{{ stats.new_leads|default:"0" }}%</strong>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- ==================== SECTION 6: AI HISOBOT ==================== -->
-<div class="section-card">
-    <div class="section-header">
-        <span class="section-icon">🤖</span>
-        <h2 class="section-title">AI HAFTALIK HISOBOT</h2>
-        <button class="btn btn-primary btn-sm" id="btn-generate-report">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
-                <path d="M12 2a9 9 0 0 1 9 9c0 3.88-3.17 7.15-6 8.65V21a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1v-1.35C6.17 18.15 3 14.88 3 11a9 9 0 0 1 9-9z"/>
-            </svg>
-            Hisobotni shakllantirish
-        </button>
-    </div>
-    <div class="ai-report-body">
-        <div id="ai-report-content" class="markdown-body">
-            <div class="empty-state">AI hisobotini shakllantirish uchun yuqoridagi tugmani bosing.</div>
-        </div>
-    </div>
-</div>
-
-<!-- Dashboard Status Footer -->
-<div class="dashboard-footer">
-    <span class="footer-dot"></span>
-    🚀 <strong>Dashboard Status: LIVE</strong> • Oxirgi yangilanish: {{ current_date|date:"d.m.Y H:i" }} • Ma'lumotlar har kuni 23:59 da yangilanadi
-</div>
-
+{{ daily_dynamics|json_script:"daily-data" }}
+{{ funnel|json_script:"funnel-data" }}
+{{ top_managers|json_script:"managers-data" }}
 {% endblock %}
 
 {% block extra_scripts %}
-{% load static %}
-<script src="{% static 'js/charts.js' %}"></script>
 <script>
-    document.addEventListener('DOMContentLoaded', () => {
-        // ========== Funnel bar animation ==========
-        const bars = document.querySelectorAll('.funnel-progress-bar');
-        let maxCount = 0;
-        bars.forEach(b => {
-            const c = parseInt(b.dataset.count) || 0;
-            if (c > maxCount) maxCount = c;
-        });
-        bars.forEach((b, i) => {
-            const c = parseInt(b.dataset.count) || 0;
-            const pct = maxCount > 0 ? ((c / maxCount) * 100) : 5;
-            setTimeout(() => {
-                b.style.width = pct + '%';
-                b.querySelector('.funnel-pct').textContent = Math.round(pct) + '%';
-            }, i * 100);
-        });
+// ===== Davr (period) tanlovi — source ni saqlab, sahifani qayta yuklaydi =====
+function setPeriod(p) {
+    var url = new URL(window.location.href);
+    if (p && p !== 'all') {
+        url.searchParams.set('period', p);
+    } else {
+        url.searchParams.delete('period');
+    }
+    window.location.href = url.toString();
+}
 
-        // ========== Weekly trend chart ==========
-        loadWeeklyTrend();
+document.addEventListener('DOMContentLoaded', function () {
+    var isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    var grid = isDark ? 'rgba(255,255,255,0.07)' : 'rgba(15,23,41,0.08)';
+    var tick = isDark ? '#94a3b8' : '#64748b';
 
-        // ========== AI Report ==========
-        const btnGenerateReport = document.getElementById('btn-generate-report');
-        const aiReportContent = document.getElementById('ai-report-content');
-
-        if (btnGenerateReport && aiReportContent) {
-            btnGenerateReport.addEventListener('click', async () => {
-                btnGenerateReport.disabled = true;
-                btnGenerateReport.innerHTML = '<span class="sync-dot" style="display:inline-block; margin-right:6px;"></span> Tayyorlanmoqda...';
-                aiReportContent.innerHTML = '<div class="loading-spinner">AI tahlil qilmoqda, biroz kuting...</div>';
-
-                try {
-                    const response = await API.get('/ai/report/weekly/');
-                    if (response && response.report) {
-                        aiReportContent.innerHTML = marked.parse(response.report);
-                    } else {
-                        aiReportContent.innerHTML = '<div class="error-state">Hisobot bo\'sh keldi.</div>';
-                    }
-                } catch (error) {
-                    console.error('AI Report Error:', error);
-                    aiReportContent.innerHTML = `<div class="error-state">Xatolik yuz berdi: ${error.message}</div>`;
-                } finally {
-                    btnGenerateReport.disabled = false;
-                    btnGenerateReport.innerHTML = `
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
-                            <path d="M12 2a9 9 0 0 1 9 9c0 3.88-3.17 7.15-6 8.65V21a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1v-1.35C6.17 18.15 3 14.88 3 11a9 9 0 0 1 9-9z"/>
-                        </svg>
-                        Yangilash
-                    `;
-                }
-            });
-        }
+    // ===== Loss reason bar fill =====
+    var fills = document.querySelectorAll('.dr-fill');
+    var maxCount = 0;
+    fills.forEach(function (f) {
+        var c = parseInt(f.dataset.count) || 0;
+        if (c > maxCount) maxCount = c;
+    });
+    fills.forEach(function (f, i) {
+        var c = parseInt(f.dataset.count) || 0;
+        var pct = maxCount > 0 ? (c / maxCount) * 100 : 0;
+        setTimeout(function () { f.style.width = Math.max(pct, 4) + '%'; }, 80 * i);
     });
 
-    let weeklyChartInstance = null;
+    // ===== Daily dynamics chart =====
+    var el = document.getElementById('daily-data');
+    var daily = el ? JSON.parse(el.textContent) : [];
+    var ctx = document.getElementById('dailyDynamicsChart');
+    if (ctx && typeof Chart !== 'undefined') {
+        var labels = daily.map(function (d) {
+            var dt = new Date(d.date);
+            return dt.toLocaleDateString('uz-UZ', { day: 'numeric', month: 'short' });
+        });
+        new Chart(ctx, {
+            data: {
+                labels: labels,
+                datasets: [
+                    {
+                        type: 'bar', label: 'Lid', yAxisID: 'y',
+                        data: daily.map(function (d) { return d.leads; }),
+                        backgroundColor: '#3b82f6', borderRadius: 4, barPercentage: 0.6,
+                    },
+                    {
+                        type: 'bar', label: 'Sotuv', yAxisID: 'y',
+                        data: daily.map(function (d) { return d.sales; }),
+                        backgroundColor: '#22c55e', borderRadius: 4, barPercentage: 0.6,
+                    },
+                    {
+                        type: 'line', label: 'Conversion %', yAxisID: 'y1',
+                        data: daily.map(function (d) { return d.conversion; }),
+                        borderColor: '#f59e0b', backgroundColor: '#f59e0b',
+                        borderWidth: 2.5, tension: 0.4, pointRadius: 3,
+                    },
+                ],
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'top',
+                        labels: { color: tick, usePointStyle: true, font: { family: 'Inter', size: 11 } },
+                    },
+                },
+                scales: {
+                    x: { ticks: { color: tick }, grid: { color: grid } },
+                    y: {
+                        position: 'left', beginAtZero: true,
+                        ticks: { color: tick }, grid: { color: grid },
+                        title: { display: true, text: 'Lid / Sotuv soni', color: tick },
+                    },
+                    y1: {
+                        position: 'right', beginAtZero: true,
+                        ticks: { color: tick, callback: function (v) { return v + '%'; } },
+                        grid: { drawOnChartArea: false },
+                        title: { display: true, text: 'Conversion %', color: tick },
+                    },
+                },
+            },
+        });
+    }
 
-    async function loadWeeklyTrend() {
-        const ctx = document.getElementById('weeklyTrendChart');
-        if (!ctx) return;
+    // ===== Funnel bar / Managers pie — lazy render on toggle =====
+    var charts = { funnel: null, managers: null };
 
-        try {
-            const data = await API.get('/analytics/leads-trend/?days=7');
-            const dayNames = ['Yak', 'Dush', 'Ses', 'Chor', 'Pay', 'Jum', 'Shan'];
+    function readJSON(id) {
+        var node = document.getElementById(id);
+        try { return node ? JSON.parse(node.textContent) : []; }
+        catch (e) { return []; }
+    }
 
-            const isDark = document.documentElement.getAttribute('data-theme') !== 'light';
-            const gridColor = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)';
-            const tickColor = isDark ? '#8898b8' : '#666';
+    window.toggleCardView = function (card, btn) {
+        var tableView = document.getElementById(card + '-table-view');
+        var chartView = document.getElementById(card + '-chart-view');
+        if (!tableView || !chartView) return;
 
-            if (weeklyChartInstance) {
-                weeklyChartInstance.destroy();
-            }
+        var showChart = chartView.hasAttribute('hidden');
+        if (showChart) {
+            tableView.setAttribute('hidden', '');
+            chartView.removeAttribute('hidden');
+            btn.textContent = '📋 Jadval';
+            btn.classList.add('dash-toggle-on');
+            renderCardChart(card);
+        } else {
+            chartView.setAttribute('hidden', '');
+            tableView.removeAttribute('hidden');
+            btn.textContent = (card === 'funnel' ? '📊 Grafik' : '🥧 Grafik');
+            btn.classList.remove('dash-toggle-on');
+        }
+    };
 
-            weeklyChartInstance = new Chart(ctx, {
-                type: 'line',
+    function renderCardChart(card) {
+        if (charts[card] || typeof Chart === 'undefined') return;
+
+        if (card === 'funnel') {
+            var funnel = readJSON('funnel-data');
+            var fctx = document.getElementById('funnelBarChart');
+            if (!fctx) return;
+            charts.funnel = new Chart(fctx, {
+                type: 'bar',
                 data: {
-                    labels: data.map(d => {
-                        const date = new Date(d.date);
-                        return date.toLocaleDateString('uz-UZ', { day: 'numeric', month: 'short' }) + '\n' + dayNames[date.getDay()];
-                    }),
+                    labels: funnel.map(function (s) { return s.name; }),
                     datasets: [{
-                        label: 'Lead',
-                        data: data.map(d => d.count),
-                        borderColor: '#3B82F6',
-                        backgroundColor: 'rgba(59,130,246,0.1)',
-                        fill: true,
-                        tension: 0.4,
-                        borderWidth: 2.5,
-                        pointRadius: 4,
-                        pointHoverRadius: 7,
-                        pointBackgroundColor: '#3B82F6',
-                    }, {
-                        label: 'Sotuv',
-                        data: data.map(d => Math.round(d.count * 0.06)),
-                        borderColor: '#10B981',
-                        backgroundColor: 'rgba(16,185,129,0.08)',
-                        fill: true,
-                        tension: 0.4,
-                        borderWidth: 2.5,
-                        pointRadius: 4,
-                        pointHoverRadius: 7,
-                        pointBackgroundColor: '#10B981',
-                    }, {
-                        label: 'Conversion %',
-                        data: data.map(() => Math.round(Math.random() * 3 + 5)),
-                        borderColor: '#EF4444',
-                        backgroundColor: 'transparent',
-                        fill: false,
-                        tension: 0.4,
-                        borderWidth: 2,
-                        pointRadius: 3,
-                        pointHoverRadius: 6,
-                        pointBackgroundColor: '#EF4444',
-                        borderDash: [5, 5],
-                    }]
+                        label: 'Soni',
+                        data: funnel.map(function (s) { return s.count; }),
+                        backgroundColor: funnel.map(function (s) { return s.color; }),
+                        borderRadius: 6,
+                    }],
                 },
                 options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
+                    responsive: true, maintainAspectRatio: false,
                     plugins: {
-                        legend: {
-                            display: true,
-                            position: 'top',
-                            labels: {
-                                color: tickColor,
-                                font: { family: 'Inter', size: 12 },
-                                usePointStyle: true,
-                                pointStyle: 'circle',
-                            }
-                        }
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: function (c) {
+                                    var s = funnel[c.dataIndex] || {};
+                                    return c.parsed.y + ' ta  (' + (s.pct || 0) + '%)';
+                                },
+                            },
+                        },
                     },
                     scales: {
-                        x: {
-                            ticks: { color: tickColor, font: { size: 11 } },
-                            grid: { color: gridColor }
-                        },
-                        y: {
-                            ticks: { color: tickColor, font: { size: 11 } },
-                            grid: { color: gridColor }
-                        }
-                    }
-                }
+                        x: { ticks: { color: tick }, grid: { display: false } },
+                        y: { beginAtZero: true, ticks: { color: tick }, grid: { color: grid } },
+                    },
+                },
             });
-        } catch (err) {
-            console.log('Weekly trend not loaded:', err);
+        } else if (card === 'managers') {
+            var managers = readJSON('managers-data');
+            var mctx = document.getElementById('managersPieChart');
+            if (!mctx) return;
+            var palette = ['#3b82f6', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899'];
+            // Tushum bo'yicha, agar barchasi 0 bo'lsa — sotuvlar soni bo'yicha
+            var values = managers.map(function (m) { return m.revenue; });
+            var metric = 'Tushum';
+            if (values.every(function (v) { return !v; })) {
+                values = managers.map(function (m) { return m.won; });
+                metric = 'Sotuvlar';
+            }
+            charts.managers = new Chart(mctx, {
+                type: 'pie',
+                data: {
+                    labels: managers.map(function (m) { return m.manager_name; }),
+                    datasets: [{
+                        data: values,
+                        backgroundColor: managers.map(function (_, i) { return palette[i % palette.length]; }),
+                        borderColor: isDark ? '#0a0a1c' : '#ffffff',
+                        borderWidth: 2,
+                    }],
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'right',
+                            labels: { color: tick, usePointStyle: true, font: { family: 'Inter', size: 11 } },
+                        },
+                        title: {
+                            display: true, text: 'Menejerlar reytingi — ' + metric,
+                            color: tick, font: { family: 'Inter', size: 12 },
+                        },
+                    },
+                },
+            });
         }
     }
-    
-    // Theme change listener
-    window.addEventListener('themeChanged', () => {
-        if (typeof loadWeeklyTrend === 'function') {
-            loadWeeklyTrend();
-        }
-    });
+
+    // ===== AI tahlil tugmasi =====
+    window.runAiAnalysis = function () {
+        var btn = document.getElementById('ai-analyze-btn');
+        var box = document.getElementById('ai-result');
+        if (!btn || !box) return;
+
+        btn.disabled = true;
+        btn.textContent = 'Tahlil qilinmoqda…';
+        box.removeAttribute('hidden');
+        box.className = 'dash-ai-result dash-ai-loading';
+        box.innerHTML = '<span class="dash-ai-spinner"></span> AI ma\'lumotlarni tahlil qilmoqda, kuting…';
+
+        var source = window.__crmSource || '';
+        var url = '/api/v1/ai/report/weekly/' + (source ? '?source=' + encodeURIComponent(source) : '');
+
+        fetch(url, { headers: { 'Accept': 'application/json' } })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                var text = data.report || data.error || 'Tahlil natijasi bo\'sh.';
+                box.className = 'dash-ai-result';
+                box.innerHTML = (typeof marked !== 'undefined')
+                    ? marked.parse(text)
+                    : text.replace(/\n/g, '<br>');
+            })
+            .catch(function (e) {
+                box.className = 'dash-ai-result dash-ai-error';
+                box.textContent = 'Xatolik: ' + e;
+            })
+            .finally(function () {
+                btn.disabled = false;
+                btn.textContent = 'Qayta tahlil qilish';
+            });
+    };
+});
 </script>
 {% endblock %}
