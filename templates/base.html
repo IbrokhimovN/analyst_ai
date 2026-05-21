@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="uz" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="AmoCRM AI Dashboard — sotuv tahlillari va AI tavsiyalar">
+    <title>{% block title %}ANALYST{% endblock %}</title>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+    <!-- Marked.js (Markdown render) -->
+    <script src="https://cdn.jsdelivr.net/npm/marked@12.0.0/marked.min.js"></script>
+
+    <!-- CSS -->
+    {% load static %}
+    <link rel="stylesheet" href="{% static 'css/dashboard.css' %}">
+
+    <meta name="csrf-token" content="{{ csrf_token }}">
+    {% block extra_head %}{% endblock %}
+</head>
+<body>
+    {% csrf_token %}
+    <!-- Sidebar Navigation -->
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <div class="logo">
+                <div class="logo-icon">
+                    <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+                        <rect width="28" height="28" rx="8" fill="url(#logo-gradient)"/>
+                        <path d="M8 14L12 18L20 10" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+                        <defs>
+                            <linearGradient id="logo-gradient" x1="0" y1="0" x2="28" y2="28">
+                                <stop stop-color="#6366F1"/>
+                                <stop offset="1" stop-color="#8B5CF6"/>
+                            </linearGradient>
+                        </defs>
+                    </svg>
+                </div>
+                <span class="logo-text">ANALYST</span>
+            </div>
+        </div>
+
+        <nav class="sidebar-nav">
+            <a href="{% url 'dashboard:index' %}" class="nav-item {% if request.resolver_match.url_name == 'index' %}active{% endif %}" id="nav-dashboard">
+                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="3" width="7" height="7" rx="1"/>
+                    <rect x="14" y="3" width="7" height="7" rx="1"/>
+                    <rect x="3" y="14" width="7" height="7" rx="1"/>
+                    <rect x="14" y="14" width="7" height="7" rx="1"/>
+                </svg>
+                <span>Dashboard</span>
+            </a>
+            <a href="{% url 'dashboard:leads' %}" class="nav-item {% if request.resolver_match.url_name == 'leads' %}active{% endif %}" id="nav-leads">
+                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
+                    <circle cx="9" cy="7" r="4"/>
+                    <path d="M22 21v-2a4 4 0 0 0-3-3.87"/>
+                    <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                </svg>
+                <span>Leadlar</span>
+            </a>
+            <a href="{% url 'dashboard:contacts' %}" class="nav-item {% if request.resolver_match.url_name == 'contacts' %}active{% endif %}" id="nav-contacts">
+                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                    <circle cx="9" cy="7" r="4"></circle>
+                    <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                    <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                </svg>
+                <span>Kontaktlar</span>
+            </a>
+            <!-- <a href="{% url 'dashboard:analytics' %}" class="nav-item {% if request.resolver_match.url_name == 'analytics' %}active{% endif %}" id="nav-analytics">
+                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M18 20V10"/>
+                    <path d="M12 20V4"/>
+                    <path d="M6 20v-6"/>
+                </svg>
+                <span>Tahlil</span>
+            </a> -->
+            <a href="{% url 'dashboard:ai-chat' %}" class="nav-item {% if request.resolver_match.url_name == 'ai-chat' %}active{% endif %}" id="nav-ai-chat">
+                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 2a9 9 0 0 1 9 9c0 3.88-3.17 7.15-6 8.65V21a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1v-1.35C6.17 18.15 3 14.88 3 11a9 9 0 0 1 9-9z"/>
+                    <path d="M9 16h6"/>
+                    <path d="M10 19h4"/>
+                </svg>
+                <span>AI Tahlilchi</span>
+            </a>
+        </nav>
+
+        <div class="sidebar-footer">
+            <div class="user-info">
+                <div class="user-avatar">{{ user.first_name|default:"A"|first }}</div>
+                <div class="user-details">
+                    <span class="user-name">{{ user.get_full_name|default:user.username }}</span>
+                    <span class="user-role">Administrator</span>
+                </div>
+            </div>
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <!-- Top Bar -->
+        <header class="topbar">
+            <button class="sidebar-toggle" id="sidebar-toggle">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M3 12h18M3 6h18M3 18h18"/>
+                </svg>
+            </button>
+            <div class="page-title">{% block page_title %}Dashboard{% endblock %}</div>
+            <div class="topbar-actions">
+                <!-- CRM Source Filter -->
+                <div class="crm-filter" id="crm-filter">
+                    <button class="crm-filter-btn {% if current_source == 'all' or not current_source %}crm-active{% endif %}"
+                            onclick="setCrmSource('')" title="Barcha CRM">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                            <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
+                            <rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
+                        </svg>
+                        Barchasi
+                    </button>
+                    <button class="crm-filter-btn crm-btn-amo {% if current_source == 'amocrm' %}crm-active{% endif %}"
+                            onclick="setCrmSource('amocrm')" title="AmoCRM">
+                        <span class="crm-dot crm-dot-amo"></span>
+                        AmoCRM
+                    </button>
+                    <button class="crm-filter-btn crm-btn-btx {% if current_source == 'bitrix' %}crm-active{% endif %}"
+                            onclick="setCrmSource('bitrix')" title="Bitrix24">
+                        <span class="crm-dot crm-dot-btx"></span>
+                        Bitrix24
+                    </button>
+                </div>
+                <button class="btn-icon theme-toggle" id="theme-toggle" title="Tema o'zgartirish">
+                    <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="5"/>
+                        <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+                    </svg>
+                    <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+                    </svg>
+                </button>
+                <button class="btn-icon" id="btn-sync" title="Ma'lumotlarni yangilash">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/>
+                    </svg>
+                </button>
+                <div class="sync-status" id="sync-status">
+                    <span class="sync-dot"></span>
+                    <span class="sync-text">Sinxron</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Page Content -->
+        <div class="page-content">
+            {% if messages %}
+            <div class="messages-container">
+                {% for message in messages %}
+                <div class="alert alert-{{ message.tags }}" id="alert-{{ forloop.counter }}">
+                    {{ message }}
+                    <button class="alert-close" onclick="this.parentElement.remove()">×</button>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            {% block content %}{% endblock %}
+        </div>
+    </main>
+
+    <!-- Theme + CRM source init (before other scripts to prevent flash) -->
+    <script>
+        (function() {
+            const saved = localStorage.getItem('theme') || 'dark';
+            document.documentElement.setAttribute('data-theme', saved);
+        })();
+
+        /**
+         * CRM Source Filter — localStorage orqali barcha sahifalarda saqlash.
+         * source: '' | 'amocrm' | 'bitrix'
+         */
+        function setCrmSource(source) {
+            // localStorage ga saqlash — barcha sahifalarda ishlaydi
+            if (source) {
+                localStorage.setItem('crmSource', source);
+            } else {
+                localStorage.removeItem('crmSource');
+            }
+
+            // Joriy sahifani source bilan qayta yuklash
+            const url = new URL(window.location.href);
+            if (source) {
+                url.searchParams.set('source', source);
+            } else {
+                url.searchParams.delete('source');
+            }
+            window.location.href = url.toString();
+        }
+
+        // CRM source ni aniqlash: URL param > localStorage
+        window.__crmSource = (function() {
+            const params = new URLSearchParams(window.location.search);
+            const urlSource = params.get('source');
+
+            if (urlSource) {
+                // URL da source bor — localStorage ni ham yangilash
+                localStorage.setItem('crmSource', urlSource);
+                return urlSource;
+            }
+
+            // URL da source yo'q — localStorage dan o'qish
+            const savedSource = localStorage.getItem('crmSource');
+            if (savedSource) {
+                // URL ni yangilash (reload qilmasdan, faqat URL ko'rinishini o'zgartirish)
+                const url = new URL(window.location.href);
+                url.searchParams.set('source', savedSource);
+                history.replaceState(null, '', url.toString());
+                return savedSource;
+            }
+
+            return '';
+        })();
+
+        // Sidebar nav linklarini source bilan yangilash
+        document.addEventListener('DOMContentLoaded', function() {
+            const source = window.__crmSource;
+            
+            // Sidebar nav linklarni yangilash
+            document.querySelectorAll('.sidebar-nav .nav-item').forEach(function(link) {
+                if (source) {
+                    const url = new URL(link.href, window.location.origin);
+                    url.searchParams.set('source', source);
+                    link.href = url.toString();
+                }
+            });
+
+            // CRM filter buttonlarni yangilash (JS orqali — Django template vars ga bog'liq emas)
+            const crmBtns = document.querySelectorAll('.crm-filter-btn');
+            crmBtns.forEach(function(btn) {
+                btn.classList.remove('crm-active');
+            });
+            
+            if (source === 'amocrm') {
+                document.querySelector('.crm-btn-amo')?.classList.add('crm-active');
+            } else if (source === 'bitrix') {
+                document.querySelector('.crm-btn-btx')?.classList.add('crm-active');
+            } else {
+                // Barchasi — birinchi button
+                if (crmBtns.length > 0) crmBtns[0].classList.add('crm-active');
+            }
+
+            // Page title dagi CRM stats barlarni ham yangilash
+            document.querySelectorAll('.crm-stats-bar .crm-stat-badge').forEach(function(badge) {
+                badge.classList.remove('crm-active');
+                const href = badge.getAttribute('href');
+                if (!source && (href === '?' || href === '')) {
+                    badge.classList.add('crm-active');
+                } else if (source && href && href.includes('source=' + source)) {
+                    badge.classList.add('crm-active');
+                }
+
+                // Link ni ham source bilan yangilash
+                if (badge.tagName === 'A' && badge.href) {
+                    // Keep the badge's own source param as-is (it sets the source)
+                }
+            });
+        });
+    </script>
+    <!-- Scripts -->
+    <script src="{% static 'js/api.js' %}"></script>
+    <script src="{% static 'js/dashboard.js' %}"></script>
+    {% block extra_scripts %}{% endblock %}
+</body>
+</html>

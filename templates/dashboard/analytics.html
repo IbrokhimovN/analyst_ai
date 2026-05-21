@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block title %}Tahlil — AmoCRM AI{% endblock %}
+{% block page_title %}Tahlil va Statistika{% endblock %}
+
+{% block content %}
+<div class="analytics-toolbar" id="analytics-toolbar">
+    <div class="period-tabs">
+        <button class="period-tab active" data-days="7">7 kun</button>
+        <button class="period-tab" data-days="30">30 kun</button>
+        <button class="period-tab" data-days="90">90 kun</button>
+    </div>
+    <button class="btn btn-primary" id="btn-generate-report">AI Hisobot</button>
+</div>
+
+<div class="stats-grid" id="analytics-stats">
+    <div class="stat-card stat-card--primary"><div class="stat-card__content"><span class="stat-card__value" id="a-total-leads">—</span><span class="stat-card__label">Jami Lead</span></div></div>
+    <div class="stat-card stat-card--success"><div class="stat-card__content"><span class="stat-card__value" id="a-conversion">—</span><span class="stat-card__label">Konversiya</span></div></div>
+    <div class="stat-card stat-card--info"><div class="stat-card__content"><span class="stat-card__value" id="a-revenue">—</span><span class="stat-card__label">Tushum</span></div></div>
+    <div class="stat-card stat-card--warning"><div class="stat-card__content"><span class="stat-card__value" id="a-avg-deal">—</span><span class="stat-card__label">O'rtacha Deal</span></div></div>
+</div>
+
+<div class="charts-grid">
+    <div class="chart-card"><div class="chart-card__header"><h3 class="chart-card__title">Sotuv Voronkasi</h3></div><div class="chart-card__body"><canvas id="funnelChart"></canvas></div></div>
+    <div class="chart-card"><div class="chart-card__header"><h3 class="chart-card__title">Menejerlar Bo'yicha</h3></div><div class="chart-card__body"><canvas id="managersChart"></canvas></div></div>
+</div>
+
+<div class="table-card" id="managers-table-card">
+    <div class="chart-card__header"><h3 class="chart-card__title">Menejerlar Samaradorligi</h3></div>
+    <div class="table-responsive">
+        <table class="data-table"><thead><tr><th>#</th><th>Menejer</th><th>Leadlar</th><th>Yutilgan</th><th>Yutqazilgan</th><th>Konversiya</th><th>Tushum</th></tr></thead>
+        <tbody id="managers-tbody"><tr><td colspan="7" class="loading-state">Yuklanmoqda...</td></tr></tbody></table>
+    </div>
+</div>
+
+<div class="modal-overlay" id="report-modal" style="display:none;">
+    <div class="modal modal--lg"><div class="modal-header"><h3 class="modal-title">AI Haftalik Hisobot</h3><button class="modal-close" id="report-modal-close">×</button></div>
+    <div class="modal-body markdown-body" id="report-content"><div class="loading-spinner">Tayyorlanmoqda...</div></div></div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+{% load static %}
+<script src="{% static 'js/charts.js' %}"></script>
+<script>
+async function loadAnalytics(days) {
+    const s = await API.get(`/analytics/summary/?days=${days}`);
+    document.getElementById('a-total-leads').textContent = s.total_leads;
+    document.getElementById('a-conversion').textContent = s.conversion_rate + '%';
+    document.getElementById('a-revenue').textContent = Number(s.monthly_revenue).toLocaleString() + " so'm";
+    document.getElementById('a-avg-deal').textContent = Number(s.avg_deal_size).toLocaleString() + " so'm";
+
+    const funnel = await API.get('/analytics/funnel/');
+    const ctx1 = document.getElementById('funnelChart');
+    if(window._fc) window._fc.destroy();
+    window._fc = new Chart(ctx1,{type:'bar',data:{labels:funnel.map(d=>d.status_name),datasets:[{data:funnel.map(d=>d.count),backgroundColor:['#6366F1','#8B5CF6','#A78BFA','#C4B5FD','#DDD6FE'],borderRadius:8}]},options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}}}});
+
+    const mgrs = await API.get(`/analytics/by-manager/?days=${days}`);
+    const ctx2 = document.getElementById('managersChart');
+    if(window._mc) window._mc.destroy();
+    window._mc = new Chart(ctx2,{type:'doughnut',data:{labels:mgrs.slice(0,6).map(d=>d.manager_name),datasets:[{data:mgrs.slice(0,6).map(d=>d.revenue),backgroundColor:['#6366F1','#EC4899','#F59E0B','#10B981','#3B82F6','#8B5CF6']}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom'}}}});
+
+    document.getElementById('managers-tbody').innerHTML = mgrs.map((m,i)=>`<tr><td>${i+1}</td><td><strong>${m.manager_name}</strong></td><td>${m.total_leads}</td><td class="text-success">${m.won}</td><td class="text-danger">${m.lost}</td><td>${m.conversion_rate}%</td><td><strong>${Number(m.revenue).toLocaleString()} so'm</strong></td></tr>`).join('');
+}
+
+document.querySelectorAll('.period-tab').forEach(t=>t.addEventListener('click',()=>{document.querySelectorAll('.period-tab').forEach(x=>x.classList.remove('active'));t.classList.add('active');loadAnalytics(parseInt(t.dataset.days));}));
+document.getElementById('btn-generate-report').addEventListener('click', async()=>{document.getElementById('report-modal').style.display='flex';document.getElementById('report-content').innerHTML='<div class="loading-spinner">Tayyorlanmoqda...</div>';const d=await API.get('/ai/report/weekly/');document.getElementById('report-content').innerHTML=marked.parse(d.report||'Topilmadi');});
+document.getElementById('report-modal-close').addEventListener('click',()=>document.getElementById('report-modal').style.display='none');
+loadAnalytics(30);
+</script>
+{% endblock %}

@@ -1,0 +1,318 @@
+{% extends "base.html" %}
+
+{% block title %}Leadlar — Analyst AI{% endblock %}
+{% block page_title %}
+<div style="display:flex; align-items:center; gap:16px; flex-wrap:wrap;">
+    <span style="font-size:1.15rem; font-weight:800;">📋 Leadlar</span>
+    <!-- <div class="crm-stats-bar" style="margin:0;">
+        <a href="?" class="crm-stat-badge crm-stat-badge-all {% if current_source == 'all' %}crm-active{% endif %}">Barchasi</a>
+        <a href="?source=amocrm" class="crm-stat-badge crm-stat-badge-amo {% if current_source == 'amocrm' %}crm-active{% endif %}">
+            <span class="crm-dot crm-dot-amo"></span> AmoCRM
+        </a>
+        <a href="?source=bitrix" class="crm-stat-badge crm-stat-badge-btx {% if current_source == 'bitrix' %}crm-active{% endif %}">
+            <span class="crm-dot crm-dot-btx"></span> Bitrix24
+        </a>
+    </div> -->
+</div>
+{% endblock %}
+
+{% block content %}
+<!-- Filters -->
+<div class="filters-bar" id="leads-filters">
+    <div class="search-box">
+        <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8"/>
+            <path d="m21 21-4.35-4.35"/>
+        </svg>
+        <input type="text" class="search-input" id="lead-search" placeholder="Lead qidirish...">
+    </div>
+    <div class="filter-group">
+        <select class="filter-select" id="filter-pipeline">
+            <option value="">Barcha Pipeline</option>
+        </select>
+        <select class="filter-select" id="filter-status">
+            <option value="">Barcha Status</option>
+        </select>
+        <select class="filter-sort" id="filter-sort">
+            <option value="-created_at">Yangi → Eski</option>
+            <option value="created_at">Eski → Yangi</option>
+            <option value="-price">Narx ↓</option>
+            <option value="price">Narx ↑</option>
+        </select>
+    </div>
+    <div>
+        <button class="btn btn-primary" onclick="openCreateModal()">+ Lead Qo'shish</button>
+    </div>
+</div>
+
+<!-- Leads Table -->
+<div class="table-card" id="leads-table-card">
+    <div class="table-responsive">
+        <table class="data-table" id="leads-table">
+            <thead>
+                <tr>
+                    <th>Nomi</th>
+                    <th>CRM</th>
+                    <th>Narx</th>
+                    <th>Pipeline</th>
+                    <th>Status</th>
+                    <th>Yaratilgan</th>
+                    <th>Harakatlar</th>
+                </tr>
+            </thead>
+            <tbody id="leads-tbody">
+                <tr>
+                    <td colspan="6" class="loading-state">
+                        <div class="loading-spinner"></div>
+                        <span>Leadlar yuklanmoqda...</span>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Pagination -->
+    <div class="pagination" id="leads-pagination">
+        <button class="btn btn-sm" id="btn-prev" disabled>← Oldingi</button>
+        <span class="pagination-info" id="pagination-info">1-sahifa</span>
+        <button class="btn btn-sm" id="btn-next">Keyingi →</button>
+    </div>
+</div>
+
+<!-- Lead Detail Modal -->
+<div class="modal-overlay" id="lead-modal" style="display:none;">
+    <div class="modal">
+        <div class="modal-header">
+            <h3 class="modal-title" id="modal-lead-name">Lead nomi</h3>
+            <button class="modal-close" id="modal-close">×</button>
+        </div>
+        <div class="modal-body" id="modal-lead-body">
+            <!-- Lead tafsilotlari shu yerda ko'rsatiladi -->
+        </div>
+        <div class="modal-footer" style="padding: 16px 24px; border-top: 1px solid var(--border-color); display: flex; gap: 10px; justify-content: flex-end;" id="modal-lead-actions">
+            <!-- Actions -->
+        </div>
+    </div>
+</div>
+
+<!-- Create/Edit Lead Modal -->
+<div class="modal-overlay" id="create-lead-modal" style="display:none;">
+    <div class="modal" style="max-width: 450px;">
+        <div class="modal-header">
+            <h3 class="modal-title" id="create-modal-title">Yangi Lead Qo'shish</h3>
+            <button class="modal-close" onclick="closeCreateModal()">×</button>
+        </div>
+        <div class="modal-body">
+            <form id="create-lead-form">
+                <input type="hidden" id="edit-lead-id">
+                <div class="detail-item" style="margin-bottom: 12px;">
+                    <label>Nomi</label>
+                    <input type="text" id="lead-form-name" class="search-input" required>
+                </div>
+                <div class="detail-item" style="margin-bottom: 12px;">
+                    <label>Narxi</label>
+                    <input type="number" id="lead-form-price" class="search-input" value="0">
+                </div>
+                <!-- simple source selector for create -->
+                <div class="detail-item" id="lead-source-group" style="margin-bottom: 12px;">
+                    <label>CRM (Yaratish uchun)</label>
+                    <select id="lead-form-source" class="filter-select" style="width: 100%;">
+                        <option value="amocrm">AmoCRM</option>
+                        <option value="bitrix">Bitrix24</option>
+                    </select>
+                </div>
+                <div style="margin-top: 20px; display: flex; gap: 10px;">
+                    <button type="submit" class="btn btn-primary">Saqlash</button>
+                    <button type="button" class="btn btn-ghost" onclick="closeCreateModal()">Bekor qilish</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+{% load static %}
+<script>
+    let currentPage = 1;
+    const tbody = document.getElementById('leads-tbody');
+
+    async function loadLeads(page = 1) {
+        currentPage = page;
+        const search = document.getElementById('lead-search').value;
+        const pipeline = document.getElementById('filter-pipeline').value;
+        const status = document.getElementById('filter-status').value;
+        const sort = document.getElementById('filter-sort').value;
+
+        let url = `/api/v1/leads/?page=${page}&ordering=${sort}`;
+        if (search) url += `&search=${encodeURIComponent(search)}`;
+        if (pipeline) url += `&pipeline_id=${pipeline}`;
+        if (status) url += `&status_id=${status}`;
+
+        tbody.innerHTML = '<tr><td colspan="6" class="loading-state"><div class="loading-spinner"></div></td></tr>';
+
+        try {
+        const data = await API.get(`/leads/?page=${page}&ordering=${sort}`);
+            const leads = data.results || [];
+
+            if (leads.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" class="empty-state">Lead topilmadi</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = leads.map(lead => {
+                const sourceLabel = lead.source === 'bitrix'
+                    ? '<span class="crm-dot crm-dot-btx" style="margin-right:4px;"></span>Bitrix'
+                    : '<span class="crm-dot crm-dot-amo" style="margin-right:4px;"></span>Amo';
+                return `
+                <tr class="lead-row" data-id="${lead.id}">
+                    <td><div class="lead-name">${lead.name || 'Nomsiz'}</div></td>
+                    <td style="white-space:nowrap; font-size:0.78rem; display:flex; align-items:center; padding-top:18px;">${sourceLabel}</td>
+                    <td><span class="lead-price">${Number(lead.price).toLocaleString('uz-UZ')} so'm</span></td>
+                    <td>${lead.pipeline_name || '—'}</td>
+                    <td><span class="status-badge">${lead.status_name || '—'}</span></td>
+                    <td>${lead.created_at ? new Date(lead.created_at).toLocaleDateString('uz-UZ') : '—'}</td>
+                    <td>
+                        <button class="btn btn-sm btn-ghost" onclick="viewLead(${lead.id})">Ko'rish</button>
+                        <button class="btn btn-sm btn-ghost" onclick="openCreateModal(${lead.id})" style="color: var(--accent-blue)">Tahrirlash</button>
+                    </td>
+                </tr>`;
+            }).join('');
+
+            // Pagination
+            document.getElementById('btn-prev').disabled = !data.previous;
+            document.getElementById('btn-next').disabled = !data.next;
+            document.getElementById('pagination-info').textContent = `${currentPage}-sahifa`;
+
+        } catch (err) {
+            tbody.innerHTML = '<tr><td colspan="6" class="error-state">Xatolik yuz berdi</td></tr>';
+        }
+    }
+
+    async function viewLead(id) {
+        const data = await API.get(`/leads/${id}/`);
+        document.getElementById('modal-lead-name').textContent = data.name || 'Nomsiz';
+        document.getElementById('modal-lead-body').innerHTML = `
+            <div class="lead-detail-grid">
+                <div class="detail-item">
+                    <label>Narx</label>
+                    <span>${Number(data.price).toLocaleString('uz-UZ')} so'm</span>
+                </div>
+                <div class="detail-item">
+                    <label>Pipeline</label>
+                    <span>${data.pipeline_name || '—'}</span>
+                </div>
+                <div class="detail-item">
+                    <label>Status</label>
+                    <span>${data.status_name || '—'}</span>
+                </div>
+                <div class="detail-item">
+                    <label>Yaratilgan</label>
+                    <span>${data.created_at ? new Date(data.created_at).toLocaleString('uz-UZ') : '—'}</span>
+                </div>
+                ${data.loss_reason ? `<div class="detail-item detail-item--full">
+                    <label>Rad etish sababi</label>
+                    <span>${data.loss_reason}</span>
+                </div>` : ''}
+                ${data.contacts && data.contacts.length > 0 ? `
+                <div class="detail-item detail-item--full">
+                    <label>Kontaktlar</label>
+                    <div class="contacts-list">
+                        ${data.contacts.map(c => `
+                            <div class="contact-chip">
+                                <span>${c.name}</span>
+                                ${c.phone ? `<span class="contact-phone">${c.phone}</span>` : ''}
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>` : ''}
+            </div>
+        `;
+        document.getElementById('modal-lead-actions').innerHTML = `
+            <button class="btn btn-ghost" style="color: var(--accent-red); border-color: var(--accent-red);" onclick="deleteLead(${data.id})">🗑 O'chirish</button>
+            <button class="btn btn-primary" onclick="document.getElementById('lead-modal').style.display='none'; openCreateModal(${data.id})">✏️ Tahrirlash</button>
+        `;
+        document.getElementById('lead-modal').style.display = 'flex';
+    }
+
+    function openCreateModal(id = null) {
+        if(id) {
+            document.getElementById('create-modal-title').textContent = 'Leadni Tahrirlash';
+            document.getElementById('edit-lead-id').value = id;
+            document.getElementById('lead-source-group').style.display = 'none'; // Source is not editable
+            // Fetch and fill
+            API.get(`/leads/${id}/`).then(data => {
+                document.getElementById('lead-form-name').value = data.name || '';
+                document.getElementById('lead-form-price').value = data.price || 0;
+                document.getElementById('create-lead-modal').style.display = 'flex';
+            });
+        } else {
+            document.getElementById('create-modal-title').textContent = 'Yangi Lead Qo\'shish';
+            document.getElementById('edit-lead-id').value = '';
+            document.getElementById('create-lead-form').reset();
+            document.getElementById('lead-source-group').style.display = 'block';
+            document.getElementById('lead-form-source').value = (window.__crmSource === 'bitrix') ? 'bitrix' : 'amocrm';
+            document.getElementById('create-lead-modal').style.display = 'flex';
+        }
+    }
+
+    function closeCreateModal() {
+        document.getElementById('create-lead-modal').style.display = 'none';
+    }
+
+    document.getElementById('create-lead-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const id = document.getElementById('edit-lead-id').value;
+        const payload = {
+            name: document.getElementById('lead-form-name').value,
+            price: document.getElementById('lead-form-price').value,
+        };
+        if(!id) payload.source = document.getElementById('lead-form-source').value;
+        
+        try {
+            if(id) {
+                await API.request(`/leads/${id}/`, { method: 'PATCH', body: JSON.stringify(payload) });
+            } else {
+                await API.post(`/leads/`, payload);
+            }
+            closeCreateModal();
+            loadLeads(currentPage);
+        } catch(err) {
+            alert('Xatolik: ' + err.message);
+        }
+    });
+
+    async function deleteLead(id) {
+        if(!confirm("Haqiqatan ham bu leadni o'chirmoqchimisiz? CRM dan ham o'chadi!")) return;
+        try {
+            await API.request(`/leads/${id}/`, { method: 'DELETE' });
+            loadLeads(currentPage);
+            document.getElementById('lead-modal').style.display = 'none';
+        } catch(err) {
+            alert("O'chirishda xatolik: " + err.message);
+        }
+    }
+
+    // Event listeners
+    document.getElementById('btn-prev').addEventListener('click', () => loadLeads(currentPage - 1));
+    document.getElementById('btn-next').addEventListener('click', () => loadLeads(currentPage + 1));
+    document.getElementById('modal-close').addEventListener('click', () => {
+        document.getElementById('lead-modal').style.display = 'none';
+    });
+    document.getElementById('lead-modal').addEventListener('click', (e) => {
+        if (e.target.id === 'lead-modal') e.target.style.display = 'none';
+    });
+
+    let searchTimeout;
+    document.getElementById('lead-search').addEventListener('input', () => {
+        clearTimeout(searchTimeout);
+        searchTimeout = setTimeout(() => loadLeads(1), 300);
+    });
+    document.getElementById('filter-pipeline').addEventListener('change', () => loadLeads(1));
+    document.getElementById('filter-status').addEventListener('change', () => loadLeads(1));
+    document.getElementById('filter-sort').addEventListener('change', () => loadLeads(1));
+
+    // Init
+    loadLeads(1);
+</script>
+{% endblock %}

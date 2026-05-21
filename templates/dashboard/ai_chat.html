@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}AI Tahlilchi — AmoCRM AI{% endblock %}
+{% block page_title %}AI Tahlilchi{% endblock %}
+
+{% block content %}
+<div class="chat-container" id="chat-container">
+    <div class="chat-messages" id="chat-messages">
+        <div class="chat-message ai">
+            <div class="chat-avatar">AI</div>
+            <div class="chat-bubble">
+                <p id="chat-welcome-msg">Salom! Men AmoCRM AI tahlilchiman. Sotuv ma'lumotlaringiz bo'yicha savollar bering — men tahlil qilib, tavsiyalar beraman.</p>
+                <div class="chat-suggestions">
+                    <button class="suggestion-btn" onclick="sendSuggestion('Bugungi sotuv holati qanday?')">📊 Bugungi holat</button>
+                    <button class="suggestion-btn" onclick="sendSuggestion('Konversiyani oshirish uchun nima qilish kerak?')">📈 Konversiya</button>
+                    <button class="suggestion-btn" onclick="sendSuggestion('Qaysi menejer eng yaxshi ishlayapti?')">👤 Menejerlar</button>
+                    <button class="suggestion-btn" onclick="sendSuggestion('Haftalik hisobot tayyorla')">📋 Hisobot</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="chat-input-area" id="chat-input-area">
+        <div class="chat-input-wrapper">
+            <textarea class="chat-input" id="chat-input" placeholder="Savol yozing..." rows="1"></textarea>
+            <button class="chat-send-btn" id="chat-send-btn" title="Yuborish">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+                    <line x1="22" y1="2" x2="11" y2="13"/>
+                    <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+                </svg>
+            </button>
+        </div>
+        <span class="chat-hint">Enter — yuborish · Shift+Enter — yangi qator</span>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+{% load static %}
+<script src="{% static 'js/ai_chat.js' %}"></script>
+<script>
+    const chat = new AIChatWidget('chat-messages', 'chat-input', 'chat-send-btn');
+
+    document.addEventListener('DOMContentLoaded', () => {
+        const welcomeMsg = document.getElementById('chat-welcome-msg');
+        if (welcomeMsg) {
+            const source = window.__crmSource;
+            if (source === 'amocrm') {
+                welcomeMsg.textContent = "Salom! Men AmoCRM AI tahlilchiman. Sotuv ma'lumotlaringiz bo'yicha savollar bering — men tahlil qilib, tavsiyalar beraman.";
+            } else if (source === 'bitrix') {
+                welcomeMsg.textContent = "Salom! Men Bitrix24 AI tahlilchiman. Sotuv ma'lumotlaringiz bo'yicha savollar bering — men tahlil qilib, tavsiyalar beraman.";
+            } else {
+                welcomeMsg.textContent = "Salom! Men AI tahlilchiman (AmoCRM va Bitrix24). Sotuv ma'lumotlaringiz bo'yicha savollar bering — men tahlil qilib, tavsiyalar beraman.";
+            }
+        }
+    });
+
+    function sendSuggestion(text) {
+        document.getElementById('chat-input').value = text;
+        chat.sendMessage(text);
+    }
+</script>
+{% endblock %}
