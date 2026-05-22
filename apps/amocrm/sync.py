@@ -111,11 +111,20 @@ def sync_leads(service=None):
                     amocrm_id=item["status_id"], pipeline=pipeline_ref
                 ).first()
 
-            # Yutqazish sababi (_embedded.loss_reason)
+            # Yutqazish sababi (_embedded.loss_reason yoki custom_fields_values)
             loss_reason = ""
             reasons = item.get("_embedded", {}).get("loss_reason")
             if reasons:
                 loss_reason = reasons[0].get("name", "")
+
+            if not loss_reason:
+                for field in item.get("custom_fields_values", []) or []:
+                    field_name = field.get("field_name", "")
+                    if field_name in ["Etiroz sababi", "Yutqazish sababi", "Rad etish sababi"] or "sabab" in field_name.lower() or "etiroz" in field_name.lower():
+                        values = field.get("values", [])
+                        if values:
+                            loss_reason = values[0].get("value", "")
+                            break
 
             Lead.objects.update_or_create(
                 amocrm_id=item["id"],
