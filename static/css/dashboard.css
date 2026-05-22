@@ -886,3 +886,280 @@ html[data-theme="light"] .icon-sun { display: none; }
     .dash-ai-bar { flex-direction: column; align-items: flex-start; }
     .dash-ai-btn { width: 100%; }
 }
+
+/* =============================================================================
+   AI Tahlilchi sahifasi — LangChain RAG / Agent / Memory
+   ============================================================================= */
+.ailab {
+    display: flex; flex-direction: column; gap: 14px;
+    height: calc(100vh - 90px - 48px);
+}
+
+/* ===== Toolbar ===== */
+.ailab-toolbar {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 14px; flex-wrap: wrap;
+    background: var(--bg-card); border: 1px solid var(--border-color);
+    border-radius: 12px; padding: 12px 16px;
+}
+.ailab-manager { display: flex; align-items: center; gap: 10px; }
+.ailab-manager label { font-size: 0.82rem; font-weight: 700; color: var(--text-secondary); }
+.ailab-manager select {
+    padding: 8px 12px; border-radius: 8px; font-family: 'Inter', sans-serif;
+    background: var(--bg-input); border: 1px solid var(--border-color);
+    color: var(--text-primary); font-size: 0.84rem; cursor: pointer; outline: none;
+}
+.ailab-agent-btn {
+    border: none; cursor: pointer; font-family: 'Inter', sans-serif;
+    font-size: 0.86rem; font-weight: 700; color: #fff;
+    padding: 10px 20px; border-radius: 10px;
+    background: linear-gradient(135deg, #6366f1, #8b5cf6);
+    transition: opacity 0.15s, transform 0.1s;
+}
+.ailab-agent-btn:hover { opacity: 0.92; }
+.ailab-agent-btn:active { transform: scale(0.98); }
+.ailab-agent-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+/* ===== Body — hujjatlar paneli + chat ===== */
+.ailab-body { flex: 1; display: flex; gap: 14px; min-height: 0; }
+
+/* ----- RAG hujjatlar paneli ----- */
+.ailab-docs {
+    width: 290px; flex-shrink: 0; display: flex; flex-direction: column; gap: 12px;
+    background: var(--bg-card); border: 1px solid var(--border-color);
+    border-radius: 12px; padding: 14px; overflow-y: auto;
+}
+.ailab-docs-head { font-size: 0.9rem; font-weight: 800; color: var(--text-primary); }
+.ailab-upload {
+    display: flex; flex-direction: column; align-items: center; gap: 4px;
+    padding: 20px 12px; border: 2px dashed var(--border-color);
+    border-radius: 10px; cursor: pointer; text-align: center;
+    transition: border-color 0.15s, background 0.15s;
+}
+.ailab-upload:hover, .ailab-upload-over { border-color: var(--accent-indigo); background: var(--accent-blue-bg); }
+.ailab-upload-busy { opacity: 0.6; pointer-events: none; }
+.ailab-upload-icon { font-size: 1.5rem; }
+.ailab-upload-text { font-size: 0.82rem; font-weight: 700; color: var(--text-primary); }
+.ailab-upload-hint { font-size: 0.7rem; color: var(--text-muted); }
+
+.ailab-doc-list { display: flex; flex-direction: column; gap: 8px; }
+.ailab-doc-empty {
+    text-align: center; color: var(--text-muted);
+    font-size: 0.8rem; font-style: italic; padding: 16px;
+}
+.ailab-doc {
+    display: flex; align-items: center; gap: 9px;
+    background: var(--bg-input); border: 1px solid var(--border-color);
+    border-radius: 9px; padding: 9px 10px;
+}
+.ailab-doc-icon { font-size: 1.05rem; flex-shrink: 0; }
+.ailab-doc-info { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.ailab-doc-title {
+    font-size: 0.8rem; font-weight: 700; color: var(--text-primary);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.ailab-doc-meta { font-size: 0.68rem; color: var(--text-muted); }
+.ailab-doc-error .ailab-doc-meta { color: var(--accent-red); }
+.ailab-doc-ready .ailab-doc-icon { filter: none; }
+.ailab-doc-del {
+    border: none; background: transparent; cursor: pointer;
+    color: var(--text-muted); font-size: 1.2rem; line-height: 1;
+    padding: 0 4px; flex-shrink: 0;
+}
+.ailab-doc-del:hover { color: var(--accent-red); }
+
+/* ----- Chat ----- */
+.ailab-chat {
+    flex: 1; display: flex; flex-direction: column; min-width: 0;
+    background: var(--bg-card); border: 1px solid var(--border-color);
+    border-radius: 12px; overflow: hidden;
+}
+.ailab-welcome-list { margin: 8px 0 0; padding-left: 18px; font-size: 0.84rem; }
+.ailab-welcome-list li { margin: 3px 0; }
+.ailab-sources {
+    margin-top: 8px; padding-top: 7px; border-top: 1px dashed var(--border-color);
+    font-size: 0.74rem; color: var(--text-muted);
+}
+.ailab-typing { letter-spacing: 2px; opacity: 0.5; animation: dash-spin 1s linear infinite; display: inline-block; }
+
+/* AI bubble ichidagi markdown */
+.chat-message.ai .chat-bubble h1, .chat-message.ai .chat-bubble h2,
+.chat-message.ai .chat-bubble h3 { font-size: 0.95rem; margin: 10px 0 6px; }
+.chat-message.ai .chat-bubble ul, .chat-message.ai .chat-bubble ol { padding-left: 18px; margin: 6px 0; }
+.chat-message.ai .chat-bubble table { border-collapse: collapse; margin: 8px 0; font-size: 0.82rem; }
+.chat-message.ai .chat-bubble th, .chat-message.ai .chat-bubble td {
+    border: 1px solid var(--border-color); padding: 5px 9px;
+}
+.chat-message.ai .chat-bubble code {
+    background: var(--bg-secondary); padding: 1px 5px; border-radius: 4px; font-size: 0.85em;
+}
+
+@media (max-width: 760px) {
+    .ailab { height: auto; }
+    .ailab-body { flex-direction: column; }
+    .ailab-docs { width: auto; }
+    .ailab-chat { height: 70vh; }
+}
+
+/* =========================================================================
+   DINAMIK DASHBOARD — AJAX yangilash, refresh, har-karta AI paneli
+   ========================================================================= */
+
+/* ----- Topbar: davr pillalari o'ng tomonda, refresh tugmasi ----- */
+.dash-head-right {
+    display: flex; align-items: center; gap: 10px; margin-left: auto;
+    flex-wrap: wrap;
+}
+.dash-refresh {
+    display: flex; align-items: center; justify-content: center;
+    width: 34px; height: 34px; border-radius: 9px; cursor: pointer;
+    border: 1px solid var(--border-color); background: var(--bg-input);
+    color: var(--text-secondary); transition: color 0.15s, border-color 0.15s;
+}
+.dash-refresh:hover { color: var(--text-primary); border-color: var(--accent-blue); }
+.dash-refresh-spin svg { animation: dash-spin 0.7s linear infinite; }
+.dash-updated {
+    font-size: 0.73rem; font-weight: 600; color: var(--text-muted);
+    white-space: nowrap;
+}
+
+/* ----- #dash-root AJAX yuklanish holati ----- */
+#dash-root { transition: opacity 0.18s; }
+#dash-root.dash-loading { opacity: 0.45; pointer-events: none; }
+
+/* ----- Karta sarlavhasidagi tugmalar guruhi ----- */
+.dch-title { flex: 1; min-width: 0; }
+.dch-actions { display: flex; align-items: center; gap: 7px; margin-left: auto; }
+.dch-actions .dash-toggle { margin-left: 0; }
+
+/* ----- 🤖 AI tugmasi (har bir kartada) ----- */
+.dcard-ai-btn {
+    border: 1px solid var(--border-color); cursor: pointer; white-space: nowrap;
+    font-family: 'Inter', sans-serif; font-size: 0.74rem; font-weight: 700;
+    padding: 6px 11px; border-radius: 8px;
+    color: #ffffff; background: linear-gradient(135deg, #6366f1, #8b5cf6);
+    border-color: transparent; transition: opacity 0.15s, transform 0.1s;
+}
+.dcard-ai-btn:hover { opacity: 0.9; }
+.dcard-ai-btn:active { transform: scale(0.97); }
+
+/* ----- Karta ichidagi AI paneli ----- */
+.dcard-ai {
+    margin: 0 0 14px; padding: 12px;
+    background: var(--bg-input); border: 1px solid var(--border-color);
+    border-radius: 11px;
+}
+.dca-tabs { display: flex; gap: 6px; margin-bottom: 10px; }
+.dca-tab {
+    border: 1px solid var(--border-color); background: var(--bg-card);
+    color: var(--text-secondary); cursor: pointer;
+    font-family: 'Inter', sans-serif; font-size: 0.76rem; font-weight: 700;
+    padding: 6px 12px; border-radius: 7px; transition: background 0.15s, color 0.15s;
+}
+.dca-tab:hover { color: var(--text-primary); }
+.dca-tab-on {
+    background: var(--accent-blue); color: #ffffff; border-color: var(--accent-blue);
+}
+.dca-row { display: flex; gap: 7px; }
+.dca-input {
+    flex: 1; min-width: 0; font-family: 'Inter', sans-serif; font-size: 0.82rem;
+    padding: 8px 11px; border-radius: 8px; color: var(--text-primary);
+    background: var(--bg-card); border: 1px solid var(--border-color);
+}
+.dca-input:focus { outline: none; border-color: var(--accent-blue); }
+.dca-go {
+    border: none; cursor: pointer; white-space: nowrap;
+    font-family: 'Inter', sans-serif; font-size: 0.79rem; font-weight: 700;
+    color: #ffffff; padding: 8px 16px; border-radius: 8px;
+    background: linear-gradient(135deg, #6366f1, #8b5cf6);
+    transition: opacity 0.15s;
+}
+.dca-go:hover { opacity: 0.9; }
+.dca-go:disabled { opacity: 0.6; cursor: not-allowed; }
+.dca-hint { font-size: 0.73rem; color: var(--text-muted); margin-top: 6px; }
+.dca-out {
+    margin-top: 10px; padding: 11px 13px; border-radius: 9px;
+    background: var(--bg-card); border: 1px solid var(--border-color);
+    font-size: 0.83rem; color: var(--text-secondary); line-height: 1.6;
+}
+.dca-out h1, .dca-out h2, .dca-out h3 {
+    color: var(--text-primary); font-size: 0.92rem; margin: 10px 0 6px;
+}
+.dca-out ul, .dca-out ol { padding-left: 19px; margin: 6px 0; }
+.dca-out li { margin: 3px 0; }
+.dca-out strong { color: var(--text-primary); }
+.dca-out p { margin: 6px 0; }
+.dca-loading { color: var(--text-muted); font-style: italic; }
+.dca-error { color: var(--accent-red); }
+.dca-spec-ok { color: var(--accent-green); }
+.dca-revert-link {
+    border: none; background: none; cursor: pointer; padding: 0;
+    font-family: 'Inter', sans-serif; font-size: 0.79rem; font-weight: 700;
+    color: var(--accent-blue); text-decoration: underline;
+}
+
+/* ----- AI tomonidan qayta chizilgan maxsus karta ko'rinishi ----- */
+.dcard-custom { display: flex; flex-direction: column; gap: 12px; }
+.dcard-custom-head {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 12px; flex-wrap: wrap;
+}
+.dcard-custom-title {
+    font-size: 0.85rem; font-weight: 700; color: var(--text-primary);
+}
+.dcard-custom-revert {
+    border: 1px solid var(--border-color); background: var(--bg-input);
+    color: var(--text-secondary); cursor: pointer;
+    font-family: 'Inter', sans-serif; font-size: 0.74rem; font-weight: 700;
+    padding: 5px 11px; border-radius: 7px;
+}
+.dcard-custom-revert:hover { color: var(--text-primary); border-color: var(--accent-blue); }
+.dcard-custom-body .dash-chart-area { min-height: 280px; }
+
+/* AI maxsus ko'rinish faolligida standart tarkibni yashirish */
+.dcard-orig-hidden { display: none !important; }
+
+/* ----- Maxsus sana oralig'i tanlash (popover) ----- */
+#dash-period { position: relative; }
+.dperiod-range { white-space: nowrap; }
+.dash-range {
+    position: absolute; top: calc(100% + 8px); left: 0; z-index: 60;
+    min-width: 280px; padding: 14px;
+    background: var(--bg-card); border: 1px solid var(--border-color);
+    border-radius: 12px;
+    box-shadow: var(--shadow-md, 0 12px 30px rgba(0, 0, 0, 0.35));
+}
+.dash-range-row { display: flex; gap: 10px; }
+.dash-range-field { display: flex; flex-direction: column; gap: 4px; flex: 1; }
+.dash-range-field span {
+    font-size: 0.71rem; font-weight: 700; color: var(--text-muted);
+    text-transform: uppercase; letter-spacing: 0.4px;
+}
+.dash-range-field input[type="date"] {
+    font-family: 'Inter', sans-serif; font-size: 0.82rem;
+    padding: 7px 9px; border-radius: 8px; color: var(--text-primary);
+    background: var(--bg-input); border: 1px solid var(--border-color);
+    color-scheme: light dark;
+}
+.dash-range-field input[type="date"]:focus {
+    outline: none; border-color: var(--accent-blue);
+}
+.dash-range-err {
+    margin-top: 8px; font-size: 0.76rem; font-weight: 600;
+    color: var(--accent-red);
+}
+.dash-range-apply {
+    width: 100%; margin-top: 11px; border: none; cursor: pointer;
+    font-family: 'Inter', sans-serif; font-size: 0.83rem; font-weight: 700;
+    color: #ffffff; padding: 9px; border-radius: 8px;
+    background: linear-gradient(135deg, #6366f1, #8b5cf6);
+    transition: opacity 0.15s;
+}
+.dash-range-apply:hover { opacity: 0.92; }
+
+@media (max-width: 760px) {
+    .dash-head-right { width: 100%; }
+    .dca-row { flex-direction: column; }
+    .dca-go { width: 100%; }
+    .dash-range { right: 0; left: auto; }
+}

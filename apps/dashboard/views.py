@@ -1,94 +1,128 @@
+import re
+from datetime import date
+
 from django.views.generic import TemplateView
 from django.utils import timezone
 
 from apps.analytics.services import AnalyticsService
 from apps.amocrm.models import Lead, Contact
 
+# Davr (period) tanlovi — kunlik / haftalik / oylik / barchasi
+PERIOD_LABELS = {
+    'day': 'Kunlik', 'week': 'Haftalik', 'month': 'Oylik', 'all': 'Barcha vaqt',
+}
+
+# Maxsus sana oralig'i: "range:YYYY-MM-DD:YYYY-MM-DD".
+RANGE_RE = re.compile(r'^range:\d{4}-\d{2}-\d{2}:\d{4}-\d{2}-\d{2}$')
+
+
+def clean_period(value):
+    """``period`` so'rov qiymatini normallashtiradi (yaroqsiz → None).
+
+    Ruxsat etilgan qiymatlar: 'day' | 'week' | 'month' yoki maxsus sana
+    oralig'i "range:YYYY-MM-DD:YYYY-MM-DD".
+    """
+    if value in ('day', 'week', 'month'):
+        return value
+    if value and RANGE_RE.match(value):
+        return value
+    return None
+
+
+def clean_source(value):
+    """``source`` so'rov qiymatini normallashtiradi (yaroqsiz → None)."""
+    return value if value in ('amocrm', 'bitrix') else None
+
+
+def build_dashboard_context(source=None, period=None):
+    """Dashboard uchun to'liq analitik kontekstni tayyorlaydi.
+
+    ``DashboardView`` (birinchi yuklash) va dinamik yangilash endpointi
+    (``api.v1.views.dashboard_data.DashboardDataView``) shu bitta
+    funksiyadan foydalanadi — mantiq ikki joyda takrorlanmasligi uchun.
+
+    Args:
+        source: CRM manbasi — ``'amocrm'`` | ``'bitrix'`` | ``None``.
+        period: davr — ``'day'`` | ``'week'`` | ``'month'`` | ``None``.
+
+    Returns:
+        Shablonga uzatiladigan kontekst lug'ati.
+    """
+    ctx = {}
+    try:
+        service = AnalyticsService()
+
+        # Umumiy ko'rsatkichlar
+        ctx["stats"] = service.get_summary(source=source, period=period)
+        # 4-bosqichli sotuv voronkasi (Lid → Call → Conversation → Sotuv)
+        ctx["funnel"] = service.get_sales_funnel(source=source, period=period)
+        # Asosiy konversiyalar (rings)
+        ctx["conversions"] = service.get_conversions(source=source, period=period)
+
+        # Menejerlar reytingi
+        managers = service.get_by_manager(source=source, period=period)
+        ctx["managers"] = managers
+        ctx["top_managers"] = managers[:5]
+
+        # Moliyaviy ko'rsatkichlar
+        ctx["finance"] = service.get_finance(source=source, period=period)
+
+        # Kunlik dinamika — maxsus sana oralig'i tanlansa aynan shu oraliq,
+        # aks holda oylik davrda 30, qolganida 7 kunlik oyna.
+        if period and period.startswith('range:'):
+            _, d1, d2 = period.split(':')
+            ctx["daily_dynamics"] = service.get_daily_dynamics(
+                source=source,
+                date_from=date.fromisoformat(d1),
+                date_to=date.fromisoformat(d2),
+            )
+        else:
+            dyn_days = 30 if period == 'month' else 7
+            ctx["daily_dynamics"] = service.get_daily_dynamics(
+                days=dyn_days, source=source)
+
+        # Yutqazish sabablari
+        ctx["loss_reasons"] = service.get_loss_reasons(source=source, period=period)
+        # Follow-up — qoldirilgan lidlar (yutqazganlar bo'yicha)
+        ctx["followup"] = [m for m in managers if m["lost"]][:5] or managers[:5]
+        # Insight va eng yaxshi kunlar
+        ctx["insights"] = service.get_insights(source=source, period=period)
+        ctx["best_days"] = service.get_best_days(source=source, period=period)
+
+        ctx["current_date"] = timezone.now()
+        ctx["manager_count"] = len(managers)
+        ctx["amocrm_count"] = Lead.objects.filter(source='amocrm').count()
+        ctx["bitrix_count"] = Lead.objects.filter(source='bitrix').count()
+
+    except Exception:
+        ctx.update({
+            "stats": {}, "funnel": [], "conversions": [], "managers": [],
+            "top_managers": [], "finance": {}, "daily_dynamics": [],
+            "loss_reasons": [], "followup": [], "insights": [], "best_days": [],
+            "current_date": timezone.now(), "manager_count": 0,
+            "amocrm_count": 0, "bitrix_count": 0,
+        })
+
+    ctx["current_source"] = source or 'all'
+    ctx["current_period"] = period or 'all'
+    if period and period.startswith('range:'):
+        _, d1, d2 = period.split(':')
+        ctx["current_period_label"] = f'{d1} – {d2}'
+    else:
+        ctx["current_period_label"] = PERIOD_LABELS.get(period or 'all',
+                                                        'Barcha vaqt')
+    return ctx
+
 
 class DashboardView(TemplateView):
     """Bosh sahifa — SAVDO BO'LIMI INTERAKTIV DASHBOARD."""
     template_name = "dashboard/index.html"
 
-    # Davr (period) tanlovi — kunlik / haftalik / oylik / barchasi
-    PERIOD_LABELS = {
-        'day': 'Kunlik', 'week': 'Haftalik', 'month': 'Oylik', 'all': 'Barcha vaqt',
-    }
-
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
-
-        # CRM source filter (query param: ?source=amocrm yoki ?source=bitrix)
-        source = self.request.GET.get('source', None)
-        if source and source not in ('amocrm', 'bitrix'):
-            source = None
-
-        # Davr filtri (query param: ?period=day|week|month) — yo'q bo'lsa barchasi
-        period = self.request.GET.get('period', None)
-        if period not in ('day', 'week', 'month'):
-            period = None
-
-        try:
-            service = AnalyticsService()
-
-            # Kunlik umumiy ko'rsatkichlar
-            ctx["stats"] = service.get_summary(source=source, period=period)
-
-            # 4-bosqichli sotuv voronkasi (Lid → Call → Conversation → Sotuv)
-            ctx["funnel"] = service.get_sales_funnel(source=source, period=period)
-
-            # Asosiy konversiyalar (rings)
-            ctx["conversions"] = service.get_conversions(source=source, period=period)
-
-            # Menejerlar reytingi
-            managers = service.get_by_manager(source=source, period=period)
-            ctx["managers"] = managers
-            ctx["top_managers"] = managers[:5]
-
-            # Moliyaviy ko'rsatkichlar
-            ctx["finance"] = service.get_finance(source=source, period=period)
-
-            # Kunlik dinamika — oylik davrda 30 kun, aks holda 7 kun oynasi
-            dyn_days = 30 if period == 'month' else 7
-            ctx["daily_dynamics"] = service.get_daily_dynamics(days=dyn_days, source=source)
-
-            # Yutqazish sabablari
-            ctx["loss_reasons"] = service.get_loss_reasons(source=source, period=period)
-
-            # Follow-up — qoldirilgan lidlar (yutqazganlar bo'yicha)
-            ctx["followup"] = [m for m in managers if m["lost"]][:5] or managers[:5]
-
-            # Insight va eng yaxshi kunlar
-            ctx["insights"] = service.get_insights(source=source, period=period)
-            ctx["best_days"] = service.get_best_days(source=source, period=period)
-
-            # Sana
-            ctx["current_date"] = timezone.now()
-            ctx["manager_count"] = len(managers)
-
-            # CRM source statistikasi
-            ctx["amocrm_count"] = Lead.objects.filter(source='amocrm').count()
-            ctx["bitrix_count"] = Lead.objects.filter(source='bitrix').count()
-
-        except Exception:
-            ctx["stats"] = {}
-            ctx["funnel"] = []
-            ctx["conversions"] = []
-            ctx["managers"] = []
-            ctx["top_managers"] = []
-            ctx["finance"] = {}
-            ctx["daily_dynamics"] = []
-            ctx["loss_reasons"] = []
-            ctx["followup"] = []
-            ctx["insights"] = []
-            ctx["best_days"] = []
-            ctx["current_date"] = timezone.now()
-            ctx["manager_count"] = 0
-            ctx["amocrm_count"] = 0
-            ctx["bitrix_count"] = 0
-
-        ctx["current_source"] = source or 'all'
-        ctx["current_period"] = period or 'all'
-        ctx["current_period_label"] = self.PERIOD_LABELS.get(period or 'all', 'Barcha vaqt')
+        source = clean_source(self.request.GET.get('source'))
+        period = clean_period(self.request.GET.get('period'))
+        ctx.update(build_dashboard_context(source, period))
         return ctx
 
 

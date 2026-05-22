@@ -1,4 +1,5 @@
 import logging
+import re
 from datetime import date, timedelta
 from decimal import Decimal
 
@@ -26,19 +27,51 @@ class AnalyticsService:
     # Davr (period) → necha kunlik oraliq. None/'all' → cheksiz (barcha vaqt).
     PERIOD_DAYS = {'day': 1, 'week': 7, 'month': 30}
 
+    # Maxsus sana oralig'i formati: "range:YYYY-MM-DD:YYYY-MM-DD".
+    _RANGE_RE = re.compile(r'^range:(\d{4}-\d{2}-\d{2}):(\d{4}-\d{2}-\d{2})$')
+
+    def _parse_period(self, period):
+        """``period`` satrini filtr tavsifiga aylantiradi.
+
+        Qaytaradi:
+          * ``None``               — barcha vaqt (filtr yo'q);
+          * ``('days', N)``        — oxirgi N kun;
+          * ``('range', d1, d2)``  — aniq sana oralig'i (``date`` obyektlari).
+        """
+        if not period:
+            return None
+        days = self.PERIOD_DAYS.get(period)
+        if days:
+            return ('days', days)
+        match = self._RANGE_RE.match(period) if isinstance(period, str) else None
+        if match:
+            try:
+                d1 = date.fromisoformat(match.group(1))
+                d2 = date.fromisoformat(match.group(2))
+            except ValueError:
+                return None
+            if d1 > d2:                      # tartibni to'g'rilaymiz
+                d1, d2 = d2, d1
+            return ('range', d1, d2)
+        return None
+
     def _base_queryset(self, source=None, period=None):
         """Asosiy queryset — source va davr (period) filtri bilan.
 
-        period: 'day' | 'week' | 'month' | None('all') — None bo'lsa
-        barcha vaqt bo'yicha, aks holda created_at oxirgi N kun bilan cheklanadi.
+        period: 'day' | 'week' | 'month' | None('all') yoki maxsus sana
+        oralig'i "range:YYYY-MM-DD:YYYY-MM-DD". None bo'lsa barcha vaqt,
+        aks holda created_at shu davr bilan cheklanadi.
         """
         qs = Lead.objects.all()
         if source:
             qs = qs.filter(source=source)
-        days = self.PERIOD_DAYS.get(period)
-        if days:
-            start = timezone.now() - timedelta(days=days)
+        parsed = self._parse_period(period)
+        if parsed and parsed[0] == 'days':
+            start = timezone.now() - timedelta(days=parsed[1])
             qs = qs.filter(created_at__gte=start)
+        elif parsed and parsed[0] == 'range':
+            qs = qs.filter(created_at__date__gte=parsed[1],
+                           created_at__date__lte=parsed[2])
         return qs
 
     def _status_buckets(self):
@@ -366,22 +399,38 @@ class AnalyticsService:
             'sale_value': round(total_revenue / won) if won else 0,
         }
 
-    def get_daily_dynamics(self, days=7, source=None):
-        """Kunlik dinamika — har kun uchun lid, sotuv va konversiya."""
+    def get_daily_dynamics(self, days=7, source=None, date_from=None, date_to=None):
+        """Kunlik dinamika — har kun uchun lid, sotuv va konversiya.
+
+        ``date_from``/``date_to`` berilsa (maxsus sana oralig'i tanlangan),
+        aynan shu oraliq kun-bakun ko'rsatiladi. Aks holda bugundan
+        orqaga ``days`` kunlik oyna ishlatiladi.
+        """
         from django.db.models.functions import TruncDate
 
-        start = (timezone.now() - timedelta(days=days - 1)).date()
+        if date_from and date_to:
+            start, end = date_from, date_to
+            span = (end - start).days + 1
+            if span > 92:                    # juda uzun oraliqni cheklaymiz
+                start = end - timedelta(days=91)
+                span = 92
+        else:
+            end = timezone.now().date()
+            start = end - timedelta(days=days - 1)
+            span = days
+
         base = self._base_queryset(source)
 
         leads_by_day = dict(
-            base.filter(created_at__date__gte=start)
+            base.filter(created_at__date__gte=start, created_at__date__lte=end)
             .annotate(d=TruncDate('created_at'))
             .values('d')
             .annotate(c=Count('id'))
             .values_list('d', 'c')
         )
         sales_by_day = dict(
-            base.filter(status_id=WON_STATUS_ID, closed_at__date__gte=start)
+            base.filter(status_id=WON_STATUS_ID,
+                        closed_at__date__gte=start, closed_at__date__lte=end)
             .annotate(d=TruncDate('closed_at'))
             .values('d')
             .annotate(c=Count('id'))
@@ -389,7 +438,7 @@ class AnalyticsService:
         )
 
         result = []
-        for i in range(days):
+        for i in range(span):
             day = start + timedelta(days=i)
             leads_n = leads_by_day.get(day, 0)
             sales_n = sales_by_day.get(day, 0)

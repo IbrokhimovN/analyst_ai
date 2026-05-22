@@ -266,6 +266,30 @@ ANTHROPIC_API_KEY = env('ANTHROPIC_API_KEY')
 
 
 # =============================================================================
+# LangChain — RAG, Agent, Memory
+# =============================================================================
+
+# RAG va Agent uchun ishlatiladigan Claude modeli
+LANGCHAIN_CLAUDE_MODEL = env('LANGCHAIN_CLAUDE_MODEL', default='claude-sonnet-4-6')
+
+# Embedding provayderi: 'fastembed' (lokal, ONNX) | 'huggingface' | 'openai'
+EMBEDDINGS_PROVIDER = env('EMBEDDINGS_PROVIDER', default='fastembed')
+
+# Embedding modeli — fastembed/huggingface uchun. Ko'p tilli (uz/ru) model.
+EMBEDDINGS_MODEL = env(
+    'EMBEDDINGS_MODEL',
+    default='sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2',
+)
+
+# OpenAI embeddings ishlatilganda kerak bo'ladi
+OPENAI_API_KEY = env('OPENAI_API_KEY', default='')
+
+# FAISS lokal vektor ombori va RAG hujjatlari uchun papkalar
+FAISS_INDEX_DIR = MEDIA_ROOT / 'faiss_index'
+RAG_UPLOAD_DIR = MEDIA_ROOT / 'rag_docs'
+
+
+# =============================================================================
 # CORS
 # =============================================================================
 

@@ -2,7 +2,7 @@ from django.urls import path
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 
-from .views import leads, analytics, ai
+from .views import leads, analytics, ai, dashboard_data
 
 urlpatterns = [
     # Leads
@@ -17,8 +17,18 @@ urlpatterns = [
     path('analytics/by-manager/', analytics.ByManagerView.as_view(), name='analytics-by-manager'),
     path('analytics/leads-trend/', analytics.LeadsTrendView.as_view(), name='analytics-leads-trend'),
     path('analytics/revenue-trend/', analytics.RevenueTrendView.as_view(), name='analytics-revenue-trend'),
-    # AI
+    # Dinamik dashboard — AJAX yangilash
+    path('dashboard/data/', dashboard_data.DashboardDataView.as_view(), name='dashboard-data'),
+    # AI — LangChain RAG, Agent, Memory
     path('ai/chat/', ai.AIChatView.as_view(), name='ai-chat'),
+    path('ai/chat/history/', ai.ChatHistoryView.as_view(), name='ai-chat-history'),
+    path('ai/rag/upload/', ai.RAGUploadView.as_view(), name='ai-rag-upload'),
+    path('ai/rag/documents/', ai.RAGDocumentsView.as_view(), name='ai-rag-documents'),
+    path('ai/rag/documents/<int:pk>/', ai.RAGDocumentDetailView.as_view(), name='ai-rag-document'),
+    path('ai/agent/analyze/', ai.AgentAnalyzeView.as_view(), name='ai-agent-analyze'),
+    path('ai/card/analyze/', ai.CardAnalyzeView.as_view(), name='ai-card-analyze'),
+    path('ai/card/render/', ai.CardRenderView.as_view(), name='ai-card-render'),
+    path('ai/managers/', ai.ManagersListView.as_view(), name='ai-managers'),
     path('ai/report/weekly/', ai.WeeklyReportView.as_view(), name='ai-weekly-report'),
     # Auth
     path('auth/token/', TokenObtainPairView.as_view(), name='token-obtain'),
