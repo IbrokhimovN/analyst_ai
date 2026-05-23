@@ -753,6 +753,8 @@
         initDailyChart();
         initLossBars();
         initCardAI();
+        applyHiddenFromStorage();
+        rehydrateCustomCards();
     }
 
     function stampUpdated(time) {
@@ -920,6 +922,305 @@
                 btn.textContent = 'Qayta tahlil qilish';
             });
     };
+
+    // =========================================================================
+    // AI chat widget'dan keladigan buyruqlar (dashboard:command event)
+    // =========================================================================
+
+    // Yashirilgan kartalarni qayta yuklashda esda saqlash uchun localStorage.
+    var HIDDEN_KEY = 'ai_dash_hidden_cards_v1';
+
+    function getHiddenCards() {
+        try { return JSON.parse(localStorage.getItem(HIDDEN_KEY)) || []; }
+        catch (e) { return []; }
+    }
+    function setHiddenCards(arr) {
+        try { localStorage.setItem(HIDDEN_KEY, JSON.stringify(arr)); }
+        catch (e) {}
+    }
+
+    function applyHiddenFromStorage() {
+        getHiddenCards().forEach(function (card) {
+            var el = document.querySelector('.dash-card[data-card="' + card + '"]');
+            if (el) { el.classList.add('dash-card-hidden'); el.style.display = 'none'; }
+        });
+    }
+
+    // Dashboard renderer faqat asosiy 8 turni biladi. Chat'dan kengaytirilgan
+    // 45+ tur kelsa, eng yaqin asosiy turga normallashtiramiz.
+    var VIEW_NORMALIZE = {
+        // bar oilasi
+        bar: 'bar', columnBar: 'bar', groupedBar: 'bar',
+        horizontalBar: 'horizontalBar', stackedBar: 'stacked',
+        horizontalStackedBar: 'horizontalBar', stacked: 'stacked',
+        percentBar: 'stacked', stepBar: 'bar', rangeBar: 'bar',
+        waterfallBar: 'bar',
+        // line oilasi
+        line: 'line', splineLine: 'line', smoothLine: 'line',
+        straightLine: 'line', steppedLine: 'line', dashedLine: 'line',
+        multiLine: 'line', pointLine: 'line',
+        // area oilasi
+        area: 'area', smoothArea: 'area', stackedArea: 'area',
+        streamArea: 'area', percentArea: 'area', gradientArea: 'area',
+        // pie oilasi
+        pie: 'pie', doughnut: 'doughnut', halfPie: 'pie',
+        halfDoughnut: 'doughnut', semicircleDoughnut: 'doughnut',
+        gauge: 'doughnut', polarArea: 'pie', nightingaleRose: 'pie',
+        // radar, scatter — dashboard'da yo'q, bar ga qaytaramiz
+        radar: 'bar', filledRadar: 'bar', multiRadar: 'bar',
+        spiderWeb: 'bar', scatter: 'bar', bubble: 'bar',
+        connectedScatter: 'line', jitterScatter: 'bar',
+        bubbleHeatmap: 'bar',
+        // combo
+        barLine: 'bar', areaBar: 'area', dualAxisBar: 'bar',
+        comboMultiAxis: 'bar',
+        // special — fallback
+        heatmap: 'horizontalBar', funnelChart: 'horizontalBar',
+        treemap: 'horizontalBar', sankey: 'horizontalBar',
+        gantt: 'horizontalBar',
+        // display
+        table: 'table', kpi: 'kpi', numberCards: 'kpi',
+        progressBar: 'horizontalBar', sparkline: 'line',
+    };
+
+    // Spec server tomondan kelgan view-spec emas, balki chatdagi spec.
+    // Uni mavjud applyViewSpec funksiyasi tushunadigan formatga moslaymiz.
+    function applySpecFromChat(card, spec) {
+        if (!spec) { return false; }
+        var vt = spec.viewType || 'bar';
+        var normalized = VIEW_NORMALIZE[vt] || 'bar';
+        var compatSpec = {
+            viewType: normalized,
+            metric: spec.metric || (spec.metrics && spec.metrics[0]),
+            metrics: spec.metrics || [],
+            sortBy: spec.sortBy || '',
+            sortDir: spec.sortDir || 'desc',
+            limit: Number(spec.limit) || 0,
+            title: spec.title || '',
+            note: (vt !== normalized
+                   ? ('Chatdan kelgan "' + vt + '" turi "' + normalized + '" sifatida chizildi.')
+                   : ''),
+        };
+        applyViewSpec(card, compatSpec);
+        return true;
+    }
+
+    // ----- Custom kartalar (chat orqali qo'shilgan) -----
+    var CUSTOM_KEY = 'ai_dash_custom_cards_v1';
+
+    function getCustomCards() {
+        try { return JSON.parse(localStorage.getItem(CUSTOM_KEY)) || []; }
+        catch (e) { return []; }
+    }
+    function setCustomCards(arr) {
+        try { localStorage.setItem(CUSTOM_KEY, JSON.stringify(arr.slice(-30))); }
+        catch (e) {}
+    }
+
+    function customCardId(card) {
+        return 'ai-custom-' + card + '-' + Math.random().toString(36).slice(2, 7);
+    }
+
+    function renderCustomCard(item) {
+        var host = document.getElementById('ai-custom-cards');
+        if (!host) { return; }
+        host.removeAttribute('hidden');
+
+        var el = document.createElement('div');
+        el.className = 'dash-card dash-card-custom';
+        el.dataset.customId = item.id;
+        el.innerHTML =
+            '<div class="dash-card-head">' +
+                '<span class="dch-icon">✨</span>' +
+                '<h2 class="dch-title">' + escapeHtml(item.spec.title ||
+                    item.spec.card_label || 'Maxsus karta') + '</h2>' +
+                '<div class="dch-actions">' +
+                    '<button type="button" class="dash-toggle" ' +
+                        'data-custom-id="' + item.id + '">✕ O\'chirish</button>' +
+                '</div>' +
+            '</div>' +
+            '<div class="dash-chart-area" style="position:relative;height:280px;">' +
+                '<canvas></canvas>' +
+            '</div>';
+        host.appendChild(el);
+
+        var canvas = el.querySelector('canvas');
+        var btn = el.querySelector('[data-custom-id]');
+        btn.addEventListener('click', function () { removeCustomCard(item.id); });
+
+        // Spec ni dashboard-dagi mavjud `drawSpecChart` ga moslashtiramiz —
+        // bu yo'l bilan barcha 45+ tur (normalize qilingan) ishlaydi.
+        var vt = (VIEW_NORMALIZE[item.spec.viewType] || 'bar');
+        try {
+            // Datasets'ni rows shaklida tayyorlash o'rniga to'g'ridan-to'g'ri
+            // Chart.js config qurib chizamiz — server allaqachon labels va
+            // datasets[].data berib qo'ygan.
+            renderCustomChart(canvas, item.spec, vt);
+        } catch (e) {
+            el.querySelector('.dash-chart-area').textContent =
+                'Grafik xato: ' + e.message;
+        }
+    }
+
+    // Dashboard'da custom karta uchun soddalashtirilgan renderer.
+    function renderCustomChart(canvas, spec, normalizedVt) {
+        if (typeof Chart === 'undefined') { return; }
+        var c = themeColors();
+        var labels = spec.labels || [];
+        var dss = spec.datasets || [];
+        var multi = dss.length > 1;
+
+        if (normalizedVt === 'pie' || normalizedVt === 'doughnut') {
+            var first = dss[0] || { data: [] };
+            charts['cust-' + spec.card + Math.random()] = new Chart(canvas, {
+                type: normalizedVt,
+                data: { labels: labels, datasets: [{
+                    label: first.label, data: first.data,
+                    backgroundColor: labels.map(function (_, i) {
+                        return PALETTE[i % PALETTE.length]; }),
+                    borderColor: c.isDark ? '#0a0a1c' : '#ffffff', borderWidth: 2,
+                }] },
+                options: { responsive: true, maintainAspectRatio: false,
+                    plugins: { legend: { position: 'right',
+                        labels: { color: c.tick, font: { size: 11 } } } } },
+            });
+            return;
+        }
+
+        var datasets = dss.map(function (d, i) {
+            var color = PALETTE[i % PALETTE.length];
+            if (normalizedVt === 'line' || normalizedVt === 'area') {
+                return {
+                    type: 'line', label: d.label, data: d.data,
+                    borderColor: color,
+                    backgroundColor: normalizedVt === 'area'
+                        ? hexToRgba(color, 0.18) : color,
+                    fill: normalizedVt === 'area', tension: 0.4,
+                    borderWidth: 2.5, pointRadius: 3,
+                };
+            }
+            return {
+                type: 'bar', label: d.label, data: d.data,
+                backgroundColor: multi ? color
+                    : labels.map(function (_, k) { return PALETTE[k % PALETTE.length]; }),
+                borderRadius: 6,
+            };
+        });
+        var chartType = (normalizedVt === 'line' || normalizedVt === 'area')
+                        ? 'line' : 'bar';
+        var opts = barLineOptions(c, multi);
+        if (normalizedVt === 'horizontalBar') { opts.indexAxis = 'y'; }
+        if (normalizedVt === 'stacked') {
+            opts.scales.x.stacked = true; opts.scales.y.stacked = true;
+        }
+        charts['cust-' + spec.card + Math.random()] = new Chart(canvas, {
+            type: chartType,
+            data: { labels: labels, datasets: datasets },
+            options: opts,
+        });
+    }
+
+    function removeCustomCard(id) {
+        setCustomCards(getCustomCards().filter(function (it) { return it.id !== id; }));
+        var el = document.querySelector('.dash-card-custom[data-custom-id="' + id + '"]');
+        if (el) { el.remove(); }
+        var host = document.getElementById('ai-custom-cards');
+        if (host && !host.querySelector('.dash-card-custom')) {
+            host.setAttribute('hidden', '');
+        }
+    }
+
+    function removeAllCustomCards() {
+        setCustomCards([]);
+        var host = document.getElementById('ai-custom-cards');
+        if (host) { host.innerHTML = ''; host.setAttribute('hidden', ''); }
+    }
+
+    function rehydrateCustomCards() {
+        var host = document.getElementById('ai-custom-cards');
+        if (!host) { return; }
+        host.innerHTML = '';
+        var items = getCustomCards();
+        if (!items.length) { host.setAttribute('hidden', ''); return; }
+        items.forEach(renderCustomCard);
+    }
+
+    function escapeHtml(s) {
+        var d = document.createElement('div');
+        d.textContent = (s == null ? '' : String(s));
+        return d.innerHTML;
+    }
+
+    function hideAllMainCards() {
+        var hidden = [];
+        document.querySelectorAll('.dash-card[data-card]').forEach(function (el) {
+            var key = el.getAttribute('data-card');
+            el.style.display = 'none';
+            el.classList.add('dash-card-hidden');
+            if (hidden.indexOf(key) === -1) { hidden.push(key); }
+        });
+        setHiddenCards(hidden);
+    }
+
+    function showAllMainCards() {
+        document.querySelectorAll('.dash-card[data-card]').forEach(function (el) {
+            el.style.display = '';
+            el.classList.remove('dash-card-hidden');
+        });
+        setHiddenCards([]);
+    }
+
+    window.addEventListener('dashboard:command', function (evt) {
+        var cmd = (evt && evt.detail) || {};
+        var action = cmd.action;
+        var card = cmd.card;
+
+        if (action === 'hide_card' && card) {
+            var el = document.querySelector('.dash-card[data-card="' + card + '"]');
+            if (el) { el.style.display = 'none'; el.classList.add('dash-card-hidden'); }
+            var hidden = getHiddenCards();
+            if (hidden.indexOf(card) === -1) { hidden.push(card); setHiddenCards(hidden); }
+            return;
+        }
+        if (action === 'show_card' && card) {
+            var el2 = document.querySelector('.dash-card[data-card="' + card + '"]');
+            if (el2) { el2.style.display = ''; el2.classList.remove('dash-card-hidden'); }
+            setHiddenCards(getHiddenCards().filter(function (c) { return c !== card; }));
+            return;
+        }
+        if (action === 'set_card_view' && card) {
+            applySpecFromChat(card, cmd.spec);
+            return;
+        }
+        if (action === 'add_custom_card' && cmd.spec) {
+            var item = { id: customCardId(cmd.card || 'x'), spec: cmd.spec };
+            var arr = getCustomCards();
+            arr.push(item);
+            setCustomCards(arr);
+            renderCustomCard(item);
+            return;
+        }
+        if (action === 'remove_custom_card' && card) {
+            // card kalit emas, custom_id sifatida ham qabul qilamiz
+            var arr2 = getCustomCards().filter(function (it) {
+                return it.id !== card && it.spec.card !== card;
+            });
+            setCustomCards(arr2);
+            document.querySelectorAll('.dash-card-custom').forEach(function (el) {
+                if (el.dataset.customId === card ||
+                    (el.querySelector('.dch-title') &&
+                     el.querySelector('.dch-title').textContent.indexOf(card) > -1)) {
+                    el.remove();
+                }
+            });
+            return;
+        }
+        if (action === 'remove_all_custom') { removeAllCustomCards(); return; }
+        if (action === 'show_all_cards') { showAllMainCards(); return; }
+        if (action === 'hide_all_cards') { hideAllMainCards(); return; }
+        if (action === 'refresh_dashboard') { loadDashboard(); return; }
+        if (action === 'open_ai_panel' && card) { toggleAiPanel(card); return; }
+    });
 
     // =========================================================================
     // Boshlash

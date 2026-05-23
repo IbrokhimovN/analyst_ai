@@ -160,14 +160,165 @@ def _build_tools(source=None, period=None):
     ]
 
 
+# Chat agent uchun batafsil system prompt — har bir tool qachon va qanday
+# ishlatilishi misol bilan. Modelga "foydalanuvchidan ma'lumot so'rash" yoki
+# "men buni qila olmayman" deyishni QAT'IY taqiqlaydi.
+_CHAT_SYSTEM_PROMPT = """Siz savdo dashboardining proaktiv AI yordamchisisiz.
+Sizga real PostgreSQL bazaga to'liq ulangan tool'lar berilgan. Foydalanuvchi
+nima so'rasa, siz tool'lar orqali aniq ma'lumot olib, BAJARISHGA harakat
+qilasiz — savol o'rniga harakat.
+
+══════════════════════════════════════════════════════════════════════════
+ASOSIY QOIDALAR (qat'iy)
+══════════════════════════════════════════════════════════════════════════
+1. **HECH QACHON foydalanuvchidan raqam, statistika, ma'lumot SO'RAMANG.**
+   Barcha ma'lumot tool'lar orqali mavjud. "Sizda bormi?", "ma'lumot bering"
+   deb so'rash QAT'IY taqiqlangan.
+
+2. **"Men qila olmayman" deyish taqiqlangan.** Agar to'g'ridan-to'g'ri tool
+   topa olmasangiz, eng yaqin tool'ni chaqiring va xulosa qiling.
+
+3. **Avval tool, keyin javob.** Statistik savolga avval kerakli tool'larni
+   chaqiring, natijani o'qing, keyin javob yozing.
+
+4. **Javob o'zbek tilida, qisqa va aniq.** Markdown ishlating: sarlavhalar,
+   bullet, **qalin** raqamlar. Iloji boricha jadval ishlating.
+
+5. **Aniq raqamlar majburiy.** Tool natijasidagi sonlarni so'zsiz ayting:
+   "Konversiya: **23.4%**, jami lidlar: **1 240**, sotuvlar: **290**".
+
+══════════════════════════════════════════════════════════════════════════
+MA'LUMOT TOOL'LARI (qachon chaqirish)
+══════════════════════════════════════════════════════════════════════════
+• `dashboard_summary` — umumiy ko'rsatkichlar (lidlar, sotuv, tushum, KPI).
+   Savollar: "umumiy holat", "qanday natijalar", "kpi", "tushum qancha".
+
+• `manager_performance` — menejerlar reytingi (kim qancha sotgan).
+   Savollar: "eng yaxshi menejer", "kim past ishlayapti", "menejer X qancha".
+
+• `sales_funnel` — Lid→Call→Conversation→Sotuv bosqichlari va konversiyalar.
+   Savollar: "voronka", "qaysi bosqichda mijoz yo'qoladi", "tushish foizi".
+
+• `conversions_data` — asosiy konversiya nisbatlari.
+   Savollar: "konversiya foizi", "call→sale", "lid→sale nisbati".
+
+• `daily_dynamics` — kun bo'yicha lid/sotuv/konversiya dinamikasi.
+   Savollar: "kunlik tendensiya", "oxirgi 7 kun", "qaysi kun yaxshi edi".
+
+• `loss_reasons` — bitimlarni yutqazish sabablari (sotib olmadi).
+   Savollar: "nega sotib olmaganlar", "sabablari", "qaytarish ko'rsatkichlari".
+
+• `followup_data` — qoldirilgan/yutqazgan lidlar, menejer kesimida.
+   Savollar: "kim follow-up qilmagan", "qoldirilgan mijozlar".
+
+• `best_days_data` — hafta kunlari bo'yicha samaradorlik.
+   Savollar: "qaysi kuni yaxshi sotamiz", "dushanba/juma qanday".
+
+══════════════════════════════════════════════════════════════════════════
+HARAKAT TOOL'LARI (chatda grafik chizish va dashboard'ni boshqarish)
+══════════════════════════════════════════════════════════════════════════
+• `make_chart` — chatda grafik (Chart.js) chizadi. Foydalanuvchi "grafik
+   ko'rsat", "diagramma", "chart qil", "pie qil", "stolb", "trend" desa
+   — albatta shuni chaqiring.
+
+   Parametrlar:
+     - `card` — qaysi ma'lumot ('funnel', 'managers', 'loss', 'finance',
+       'conversions', 'daily', 'followup', 'best_days').
+     - `view_type` — 50+ tur mavjud. Asosiy kategoriyalar:
+       • **Bar oilasi**: bar, horizontalBar, stackedBar, horizontalStackedBar,
+         groupedBar, percentBar, stepBar, rangeBar, waterfallBar, columnBar.
+       • **Line oilasi**: line, smoothLine, straightLine, steppedLine,
+         dashedLine, multiLine, splineLine, pointLine.
+       • **Area oilasi**: area, stackedArea, percentArea, smoothArea,
+         streamArea, gradientArea.
+       • **Pie oilasi**: pie, doughnut, halfPie, halfDoughnut,
+         semicircleDoughnut, gauge, polarArea, nightingaleRose.
+       • **Radar**: radar, filledRadar, multiRadar, spiderWeb.
+       • **Scatter/Bubble**: scatter, bubble, connectedScatter,
+         jitterScatter, bubbleHeatmap.
+       • **Combo**: barLine, areaBar, dualAxisBar, comboMultiAxis.
+       • **Special**: heatmap, funnelChart, treemap, sankey, gantt.
+       • **Display**: table, kpi, sparkline, progressBar, numberCards.
+       Foydalanuvchi shu nomlardan birini aytsa — to'g'ridan-to'g'ri shuni
+       ishlating.
+     - `metric` — asosiy sonli maydon (har kartaga mos: managers uchun
+       'revenue'/'won'/'calls', funnel uchun 'count'/'pct' va h.k.).
+     - `metrics` — bir nechta birga ko'rsatish kerak bo'lsa massiv (faqat
+       bar/line/area/stacked uchun). Pie/doughnut uchun bitta.
+     - `sort_by`, `sort_dir` — saralash (sonli maydon nomi va 'asc'/'desc').
+     - `limit` — nechta element ko'rsatilsin (0 — barchasi).
+     - `title` — grafik sarlavhasi.
+
+   Misol: "Menejerlarni pie chart bilan tushum bo'yicha ko'rsat" →
+   `make_chart(card='managers', view_type='pie', metric='revenue', limit=10)`.
+
+   Misol: "Kunlik lid va sotuv stolb diagrammada" →
+   `make_chart(card='daily', view_type='bar', metric='leads',
+   metrics=['leads', 'sales'], title='Kunlik dinamika')`.
+
+   Foydalanuvchi "barchasini grafik bilan ko'rsat" desa — bir nechta marta
+   chaqiring (har karta uchun alohida).
+
+• `dashboard_command` — asosiy dashboard'ni boshqaradi. Foydalanuvchi
+   "kartani yashir/ko'rsat", "voronka kartasini olib tashla", "managers
+   kartasini pie qil", "dashboard'da X kartani qo'sh" desa shuni chaqiring.
+
+   Parametrlar:
+     - `action` — quyidagilardan biri:
+        * `show_card` / `hide_card` — bitta kartani ko'rsatish/yashirish.
+        * `set_card_view` — mavjud karta ko'rinishini o'zgartirish (jadval/
+          grafik turi va metrikani almashtirish).
+        * `add_custom_card` — dashboard ostiga **yangi** maxsus karta qo'shish
+          (foydalanuvchi xohlagan tur va metrika bilan).
+        * `remove_custom_card` — bitta maxsus kartani o'chirish (card kaliti).
+        * `remove_all_custom` — foydalanuvchi qo'shgan barcha maxsus kartalarni
+          o'chirish.
+        * `show_all_cards` — yashirilgan asosiy kartalarning **hammasini**
+          qaytarish.
+        * `hide_all_cards` — asosiy kartalarning hammasini yashirish (tahrir/
+          tozalash uchun).
+        * `refresh_dashboard` — dashboard'ni yangilash.
+        * `open_ai_panel` — kartaning AI tahlil panelini ochish.
+     - `card` — karta kaliti (yuqoridagi 8 ta dan biri).
+     - `view_type`, `metric`, `metrics`, `sort_by`, `sort_dir`, `limit`,
+       `title` — `set_card_view`/`add_custom_card` uchun (`make_chart` bilan
+       bir xil parametrlar).
+
+   Misollar:
+   • "Loss kartasini yashir" →
+     `dashboard_command(action='hide_card', card='loss')`.
+   • "Menejerlar kartasini doughnut qil" →
+     `dashboard_command(action='set_card_view', card='managers',
+     view_type='doughnut', metric='revenue', limit=5)`.
+   • "Yangi karta qo'sh — kunlik sotuvlar smoothLine bilan" →
+     `dashboard_command(action='add_custom_card', card='daily',
+     view_type='smoothLine', metric='sales', title='Sotuv tendensiyasi')`.
+   • "Hamma kartalarni tozala" →
+     `dashboard_command(action='remove_all_custom')` + (agar kerak bo'lsa)
+     `dashboard_command(action='hide_all_cards')`.
+   • "Barcha kartalarni qaytar / hammasini ko'rsat" →
+     `dashboard_command(action='show_all_cards')`.
+
+══════════════════════════════════════════════════════════════════════════
+XULOSA STILI
+══════════════════════════════════════════════════════════════════════════
+• Statistika savoliga: 1-2 jumla xulosa + jadval/ro'yxat + tavsiya.
+• Grafik so'rasa: `make_chart` ni chaqiring, javobda 1 jumlali sharh yozing
+  ("Quyida menejerlar reytingi pie chart sifatida — Akmal yetakchi.").
+• Dashboard buyrug'iga: `dashboard_command` ni chaqiring, tasdiqlang
+  ("Loss kartasi yashirildi.").
+• Salom-alik yoki bog'liq bo'lmagan savolga: tool chaqirmasdan qisqa javob.
+"""
+
+
 def chat_with_agent(question: str, manager_id: int = 0,
                     source=None, period=None) -> dict:
-    """Erkin suhbat — AgentExecutor + DB tool'lar + suhbat memory.
+    """Erkin suhbat — AgentExecutor + DB tool'lar + chart/command tool'lar.
 
     Widget va `/ai-chat/` sahifasi shu funksiyani chaqiradi. Foydalanuvchi
-    konversiya, sotuv, menejerlar haqida savol berganda agent avval mos
-    tool'larni chaqirib real ma'lumotni o'qiydi, keyin javob beradi —
-    foydalanuvchidan raqam so'ramaydi.
+    statistika, grafik yoki dashboard buyrug'ini so'rasa — agent mos tool'ni
+    chaqiradi, natija javob bilan birga ``charts`` va ``commands`` ro'yxati
+    sifatida qaytadi.
 
     Args:
         question: foydalanuvchi savoli.
@@ -176,44 +327,147 @@ def chat_with_agent(question: str, manager_id: int = 0,
         period: davr filtri — ``'day'`` | ``'week'`` | ``'month'`` | ``None``.
 
     Returns:
-        ``{'answer': str, 'sources': list[str], 'used_rag': bool, 'steps': list[str]}``.
+        ``{'answer', 'sources', 'used_rag', 'steps', 'charts', 'commands'}``.
+        ``charts`` — chatda chiziladigan Chart.js spec ro'yxati.
+        ``commands`` — dashboard'ga yuboriladigan buyruqlar ro'yxati.
     """
     from langchain.agents import AgentExecutor, create_tool_calling_agent
     from langchain.prompts import ChatPromptTemplate, MessagesPlaceholder
+    from langchain_core.tools import StructuredTool
+    from pydantic import BaseModel, Field
+    from typing import List, Optional
 
     from . import memory as memory_mod
 
     question = (question or '').strip()
     if not question:
         return {'answer': 'Savol bo\'sh.', 'sources': [],
-                'used_rag': False, 'steps': []}
+                'used_rag': False, 'steps': [],
+                'charts': [], 'commands': []}
 
-    tools = _build_tools(source, period)
+    # Closure orqali tool natijalarini yig'amiz — javob bilan birga
+    # frontend'ga uzatamiz.
+    chart_specs = []
+    commands = []
 
-    chat_system = (
-        'Siz savdo dashboardining AI yordamchisisiz. Sizga real bazaga ulangan '
-        'tool\'lar berilgan: dashboard_summary, manager_performance, sales_funnel, '
-        'conversions_data, daily_dynamics, loss_reasons, followup_data, '
-        'best_days_data. '
-        '\n\nMUHIM QOIDALAR:\n'
-        '1. Foydalanuvchidan HECH QACHON raqam, statistika yoki ma\'lumot SO\'RAMANG. '
-        'Barcha ma\'lumot tool\'lar orqali mavjud — kerakli tool\'ni chaqiring va '
-        'real DB qiymatlaridan javob bering.\n'
-        '2. "Konversiya", "sotuv", "menejer", "voronka", "kunlik dinamika", '
-        '"yutqazish sabablari" kabi savollarga mos tool\'ni chaqiring.\n'
-        '3. Tool\'dan kelgan natijani aniq raqamlar bilan ko\'rsating '
-        '(masalan: "Konversiya: 23.4%, jami lidlar: 1240, sotuvlar: 290").\n'
-        '4. Javob o\'zbek tilida, qisqa va aniq. Markdown ishlatish mumkin.\n'
-        '5. Agar savol tizim ma\'lumotlariga taalluqli bo\'lmasa (umumiy salom-'
-        'alik, savdo maslahati va h.k.) — tool chaqirmasdan javob bering.'
-    )
+    base_tools = _build_tools(source, period)
+
+    def _make_chart_tool(card='', view_type='bar', metric='', metrics=None,
+                         sort_by='', sort_dir='desc', limit=0, title='') -> str:
+        """`make_chart` tool — chatda grafik chizish uchun spec qaytaradi."""
+        if card not in _CARD_FIELDS:
+            return (f'Xato: noma\'lum karta "{card}". Quyidagilardan tanlang: '
+                    f'{", ".join(_CARD_FIELDS.keys())}.')
+        spec, err = _build_chat_chart_spec(
+            card=card, view_type=view_type, metric=metric,
+            metrics=metrics or [], sort_by=sort_by, sort_dir=sort_dir,
+            limit=int(limit or 0), title=title,
+            source=source, period=period,
+        )
+        if err:
+            return f'Xato: {err}'
+        chart_specs.append(spec)
+        return (f'Grafik tayyorlandi: card={card}, type={view_type}, '
+                f'rows={len(spec.get("labels", []))}. Foydalanuvchiga '
+                'qisqa sharh yozing — grafik javob ostida ko\'rinadi.')
+
+    def _dashboard_command_tool(action='', card='', view_type='bar',
+                                 metric='', metrics=None, sort_by='',
+                                 sort_dir='desc', limit=0, title='') -> str:
+        """`dashboard_command` tool — dashboard'ni boshqarish buyrug'i."""
+        action = (action or '').strip()
+        valid_actions = {
+            'show_card', 'hide_card', 'set_card_view',
+            'refresh_dashboard', 'open_ai_panel',
+            'show_all_cards', 'hide_all_cards',
+            'add_custom_card', 'remove_custom_card', 'remove_all_custom',
+        }
+        if action not in valid_actions:
+            return (f'Xato: action "{action}" noma\'lum. '
+                    f'Mavjud: {", ".join(sorted(valid_actions))}.')
+
+        no_card_actions = {'refresh_dashboard', 'show_all_cards',
+                            'hide_all_cards', 'remove_all_custom'}
+        if action not in no_card_actions and card not in _CARD_FIELDS:
+            return (f'Xato: noma\'lum karta "{card}". '
+                    f'Mavjud: {", ".join(_CARD_FIELDS.keys())}.')
+
+        cmd = {'action': action, 'card': card}
+        if action in ('set_card_view', 'add_custom_card'):
+            spec, err = _build_chat_chart_spec(
+                card=card, view_type=view_type, metric=metric,
+                metrics=metrics or [], sort_by=sort_by, sort_dir=sort_dir,
+                limit=int(limit or 0), title=title,
+                source=source, period=period,
+            )
+            if err:
+                return f'Xato: {err}'
+            cmd['spec'] = spec
+        commands.append(cmd)
+        return f'Buyruq dashboard\'ga yuborildi: {action} (card={card}).'
+
+    class _MakeChartArgs(BaseModel):
+        card: str = Field(description=(
+            'Karta kaliti: funnel|managers|loss|finance|conversions|daily|'
+            'followup|best_days.'))
+        view_type: str = Field(default='bar', description=(
+            'Grafik turi: bar|line|area|pie|doughnut|horizontalBar|stacked|table.'))
+        metric: str = Field(default='', description=(
+            'Asosiy sonli maydon (kartaga mos).'))
+        metrics: Optional[List[str]] = Field(default=None, description=(
+            'Bir nechta sonli maydon (bar/line/area/stacked uchun).'))
+        sort_by: str = Field(default='', description='Saralash maydoni.')
+        sort_dir: str = Field(default='desc', description='asc yoki desc.')
+        limit: int = Field(default=0, description='Nechta element (0 — barchasi).')
+        title: str = Field(default='', description='Grafik sarlavhasi.')
+
+    class _DashCmdArgs(BaseModel):
+        action: str = Field(description=(
+            'Buyruq: show_card | hide_card | set_card_view | refresh_dashboard'
+            ' | open_ai_panel | show_all_cards | hide_all_cards | '
+            'add_custom_card | remove_custom_card | remove_all_custom.'))
+        card: str = Field(default='', description=(
+            'Karta kaliti (show_all_cards/hide_all_cards/refresh_dashboard/'
+            'remove_all_custom uchun bo\'sh; add_custom_card/set_card_view '
+            'va boshqalar uchun majburiy).'))
+        view_type: str = Field(default='bar', description='set_card_view uchun.')
+        metric: str = Field(default='', description='set_card_view uchun.')
+        metrics: Optional[List[str]] = Field(default=None,
+                                              description='set_card_view uchun.')
+        sort_by: str = Field(default='', description='set_card_view uchun.')
+        sort_dir: str = Field(default='desc', description='set_card_view uchun.')
+        limit: int = Field(default=0, description='set_card_view uchun.')
+        title: str = Field(default='', description='set_card_view uchun.')
+
+    extra_tools = [
+        StructuredTool.from_function(
+            func=_make_chart_tool,
+            name='make_chart',
+            description=(
+                'Chat ichida Chart.js grafik chizadi. Foydalanuvchi "grafik", '
+                '"chart", "diagramma", "pie", "stolb", "trend" so\'rasa ishlating.'
+            ),
+            args_schema=_MakeChartArgs,
+        ),
+        StructuredTool.from_function(
+            func=_dashboard_command_tool,
+            name='dashboard_command',
+            description=(
+                'Asosiy dashboard\'ni boshqaradi: kartani ko\'rsatish/yashirish, '
+                'ko\'rinishini o\'zgartirish, yangilash.'
+            ),
+            args_schema=_DashCmdArgs,
+        ),
+    ]
+
+    tools = base_tools + extra_tools
 
     mem = memory_mod.build_memory(manager_id,
                                   input_key='input', output_key='output')
     history_msgs = mem.chat_memory.messages
 
     prompt = ChatPromptTemplate.from_messages([
-        ('system', chat_system),
+        ('system', _CHAT_SYSTEM_PROMPT),
         MessagesPlaceholder('history'),
         ('human', '{input}'),
         MessagesPlaceholder('agent_scratchpad'),
@@ -244,9 +498,135 @@ def chat_with_agent(question: str, manager_id: int = 0,
     except Exception as exc:  # noqa: BLE001
         logger.warning('Memory save xato: %s', exc)
 
-    logger.info('Chat agent: manager=%s, tools=%s', manager_id, steps)
-    return {'answer': output, 'sources': [],
-            'used_rag': False, 'steps': steps}
+    logger.info('Chat agent: manager=%s, tools=%s, charts=%d, commands=%d',
+                manager_id, steps, len(chart_specs), len(commands))
+    return {'answer': output, 'sources': [], 'used_rag': False,
+            'steps': steps, 'charts': chart_specs, 'commands': commands}
+
+
+# =============================================================================
+# Chatda grafik chizish uchun spec — backend frontend uchun tayyor data
+# qaytaradi (frontend Chart.js orqali chizadi).
+# =============================================================================
+
+# Metrik kalitlari uchun o'zbekcha sarlavhalar (chat grafiklarida ham
+# ishlatamiz, dashboard frontendiga mos).
+_METRIC_LABELS = {
+    'count': 'Soni', 'pct': 'Foiz, %', 'revenue': 'Tushum', 'won': 'Sotuv',
+    'calls': 'Call', 'conversations': 'Conversation', 'total_leads': 'Lidlar',
+    'conversion_rate': 'Konversiya, %', 'convo_rate': 'Convo, %',
+    'sale_rate': 'Sale, %', 'lead_to_sale': 'Lid->Sale, %', 'value': 'Qiymat',
+    'num': 'Soni', 'den': 'Umumiy', 'leads': 'Lid', 'sales': 'Sotuv',
+    'conversion': 'Konversiya, %', 'lost': 'Yutqazgan',
+    'total_revenue': 'Tushum', 'avg_deal': "O'rtacha chek",
+    'lead_value': '1 lid qiymati', 'sale_value': '1 sale qiymati',
+}
+
+
+def _chart_rows(card, source=None, period=None):
+    """Karta uchun grafik chizishga tayyor qatorlar (massiv)."""
+    svc = AnalyticsService()
+    if card == 'funnel':
+        return svc.get_sales_funnel(source, period) or []
+    if card == 'managers':
+        return svc.get_by_manager(source=source, period=period) or []
+    if card == 'loss':
+        return svc.get_loss_reasons(source=source, period=period) or []
+    if card == 'conversions':
+        return svc.get_conversions(source, period) or []
+    if card == 'daily':
+        return svc.get_daily_dynamics(source=source) or []
+    if card == 'followup':
+        managers = svc.get_by_manager(source=source, period=period) or []
+        rows = [m for m in managers if m.get('lost')][:10] or managers[:10]
+        return rows
+    if card == 'best_days':
+        return svc.get_best_days(source=source, period=period) or []
+    if card == 'finance':
+        f = svc.get_finance(source=source, period=period) or {}
+        common = {
+            'total_revenue': float(f.get('total_revenue') or 0),
+            'avg_deal': float(f.get('avg_deal') or 0),
+            'lead_value': float(f.get('lead_value') or 0),
+            'sale_value': float(f.get('sale_value') or 0),
+        }
+        return [
+            {'_label': 'Umumiy tushum', 'value': common['total_revenue'], **common},
+            {'_label': "O'rtacha chek", 'value': common['avg_deal'], **common},
+            {'_label': '1 lid qiymati', 'value': common['lead_value'], **common},
+            {'_label': '1 sale qiymati', 'value': common['sale_value'], **common},
+        ]
+    return []
+
+
+def _build_chat_chart_spec(card, view_type, metric, metrics, sort_by,
+                            sort_dir, limit, title, source, period):
+    """Chat ichida chiziladigan grafik uchun spec qaytaradi.
+
+    Returns:
+        (spec_dict, error_str). Xato bo'lmasa ``error_str`` bo'sh.
+    """
+    meta = _CARD_FIELDS.get(card)
+    if not meta:
+        return None, f'noma\'lum karta {card}'
+
+    allowed_views = set(meta['views'])
+    if view_type not in allowed_views:
+        view_type = 'bar' if 'bar' in allowed_views else next(iter(allowed_views))
+
+    numeric_fields = meta['numeric']
+    if metric not in numeric_fields:
+        metric = numeric_fields[0]
+
+    metrics = [m for m in (metrics or []) if m in numeric_fields]
+    if not metrics:
+        metrics = [metric]
+
+    rows = _chart_rows(card, source=source, period=period)
+    if not rows:
+        return None, 'ma\'lumot bo\'sh (bazada ushbu karta uchun yozuv yo\'q)'
+
+    if sort_by and sort_by in numeric_fields:
+        reverse = (sort_dir or 'desc').lower() != 'asc'
+        rows = sorted(rows, key=lambda r: float(r.get(sort_by) or 0),
+                      reverse=reverse)
+
+    try:
+        limit = int(limit)
+    except (TypeError, ValueError):
+        limit = 0
+    if limit > 0:
+        rows = rows[:limit]
+
+    cat_key = meta.get('category')
+    if card == 'finance':
+        labels = [r.get('_label', '') for r in rows]
+    elif cat_key:
+        labels = [str(r.get(cat_key, '')) for r in rows]
+    else:
+        labels = [str(i + 1) for i in range(len(rows))]
+
+    datasets = []
+    for m in metrics:
+        datasets.append({
+            'label': _METRIC_LABELS.get(m, m),
+            'metric': m,
+            'data': [float(r.get(m) or 0) for r in rows],
+        })
+
+    return {
+        'card': card,
+        'card_label': meta['label'],
+        'viewType': view_type,
+        'metric': metric,
+        'metrics': metrics,
+        'labels': labels,
+        'datasets': datasets,
+        'title': (title or '').strip() or meta['label'],
+        'sortBy': sort_by if sort_by in numeric_fields else '',
+        'sortDir': 'asc' if (sort_dir or '').lower() == 'asc' else 'desc',
+        'limit': limit,
+    }, ''
 
 
 def run_agent_analysis(source=None, period=None) -> dict:
@@ -313,11 +693,39 @@ def run_agent_analysis(source=None, period=None) -> dict:
 # foydalanuvchi istagiga moslab o'zgartirish (dinamik dashboard uchun).
 # =============================================================================
 
-# Barcha kartalarda ruxsat etiladigan grafik turlari (multi-metric ham
-# ishlaydi). Frontend `drawSpecChart` shularning hammasini chizadi.
+# =============================================================================
+# Kengaytirilgan grafik turlari (50+) — frontend renderer hammasini chizadi.
+# Har bir tur Chart.js ning native imkoniyatlariga moslangan; murakkab tiplar
+# (treemap/sankey/candlestick) Chart.js plagini mavjud bo'lmasa, fallback —
+# bar yoki jadval shaklida chiziladi.
+# =============================================================================
 _VIEWS_FULL = [
-    'table', 'bar', 'line', 'area', 'pie', 'doughnut',
-    'horizontalBar', 'stacked',
+    # ----- Display -----
+    'table', 'kpi', 'sparkline', 'progressBar', 'numberCards',
+    # ----- Bar family (10) -----
+    'bar', 'horizontalBar', 'stackedBar', 'horizontalStackedBar',
+    'groupedBar', 'percentBar', 'stepBar', 'rangeBar', 'waterfallBar',
+    'columnBar',
+    # ----- Line family (8) -----
+    'line', 'smoothLine', 'straightLine', 'steppedLine',
+    'dashedLine', 'multiLine', 'splineLine', 'pointLine',
+    # ----- Area family (6) -----
+    'area', 'stackedArea', 'percentArea', 'smoothArea',
+    'streamArea', 'gradientArea',
+    # ----- Pie family (8) -----
+    'pie', 'doughnut', 'halfPie', 'halfDoughnut',
+    'semicircleDoughnut', 'gauge', 'polarArea', 'nightingaleRose',
+    # ----- Radar / Spider (4) -----
+    'radar', 'filledRadar', 'multiRadar', 'spiderWeb',
+    # ----- Scatter / Bubble (5) -----
+    'scatter', 'bubble', 'connectedScatter', 'jitterScatter',
+    'bubbleHeatmap',
+    # ----- Combo (4) -----
+    'barLine', 'areaBar', 'dualAxisBar', 'comboMultiAxis',
+    # ----- Special / Advanced (5) -----
+    'heatmap', 'funnelChart', 'treemap', 'sankey', 'gantt',
+    # ----- Legacy alias -----
+    'stacked',  # = stackedBar
 ]
 
 # Har bir dashboard kartasining "metama'lumoti". AI shu asosda qaysi

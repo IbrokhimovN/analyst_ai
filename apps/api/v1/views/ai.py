@@ -205,6 +205,8 @@ class AIChatView(APIView):
             'sources': result.get('sources', []),
             'used_rag': result.get('used_rag', False),
             'steps': result.get('steps', []),
+            'charts': result.get('charts', []),
+            'commands': result.get('commands', []),
         })
 
 
