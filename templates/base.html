@@ -82,14 +82,6 @@
                 </svg>
                 <span>Tahlil</span>
             </a> -->
-            <a href="{% url 'dashboard:ai-chat' %}" class="nav-item {% if request.resolver_match.url_name == 'ai-chat' %}active{% endif %}" id="nav-ai-chat">
-                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M12 2a9 9 0 0 1 9 9c0 3.88-3.17 7.15-6 8.65V21a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1v-1.35C6.17 18.15 3 14.88 3 11a9 9 0 0 1 9-9z"/>
-                    <path d="M9 16h6"/>
-                    <path d="M10 19h4"/>
-                </svg>
-                <span>AI Tahlilchi</span>
-            </a>
         </nav>
 
         <!-- <div class="sidebar-footer">
@@ -275,5 +267,9 @@
     <script src="{% static 'js/api.js' %}"></script>
     <script src="{% static 'js/dashboard.js' %}"></script>
     {% block extra_scripts %}{% endblock %}
+
+    <!-- Floating AI chat widget (Shadow DOM — barcha sahifalarda mavjud) -->
+    <div id="ai-chat-widget"></div>
+    <script src="{% static 'js/ai_chat_widget.js' %}"></script>
 </body>
 </html>
