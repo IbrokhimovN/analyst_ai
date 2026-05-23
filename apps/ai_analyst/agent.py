@@ -224,23 +224,33 @@ HARAKAT TOOL'LARI (chatda grafik chizish va dashboard'ni boshqarish)
    Parametrlar:
      - `card` — qaysi ma'lumot ('funnel', 'managers', 'loss', 'finance',
        'conversions', 'daily', 'followup', 'best_days').
-     - `view_type` — 50+ tur mavjud. Asosiy kategoriyalar:
-       • **Bar oilasi**: bar, horizontalBar, stackedBar, horizontalStackedBar,
-         groupedBar, percentBar, stepBar, rangeBar, waterfallBar, columnBar.
-       • **Line oilasi**: line, smoothLine, straightLine, steppedLine,
-         dashedLine, multiLine, splineLine, pointLine.
-       • **Area oilasi**: area, stackedArea, percentArea, smoothArea,
-         streamArea, gradientArea.
-       • **Pie oilasi**: pie, doughnut, halfPie, halfDoughnut,
-         semicircleDoughnut, gauge, polarArea, nightingaleRose.
-       • **Radar**: radar, filledRadar, multiRadar, spiderWeb.
-       • **Scatter/Bubble**: scatter, bubble, connectedScatter,
-         jitterScatter, bubbleHeatmap.
-       • **Combo**: barLine, areaBar, dualAxisBar, comboMultiAxis.
-       • **Special**: heatmap, funnelChart, treemap, sankey, gantt.
-       • **Display**: table, kpi, sparkline, progressBar, numberCards.
-       Foydalanuvchi shu nomlardan birini aytsa — to'g'ridan-to'g'ri shuni
-       ishlating.
+     - `view_type` — **43 ta canonical tur** mavjud (har biri haqiqatan
+       chiziladi):
+       • **Bar oilasi (9)**: barChart, columnChart, groupedBar, stackedBar,
+         horizontalBar, horizontalStackedBar, percentBar, rangeBar, bulletChart.
+       • **Line/Area oilasi (14)**: lineChart, areaChart, stackedArea,
+         streamGraph, stepChart, bumpChart, sparkline, smoothLine,
+         straightLine, dashedLine, multiLine, pointLine, smoothArea,
+         percentArea.
+       • **Pie/Radial (11)**: pieChart, doughnutChart, halfPie, halfDoughnut,
+         semicircleDoughnut, gaugeChart, polarArea, nightingaleRose,
+         waffleChart, sunburst, marimekko.
+       • **Distribution (5)**: histogram, boxPlot, violinPlot, dotPlot,
+         densityChart.
+       • **Scatter/Correlation (7)**: scatterPlot, bubbleChart,
+         connectedScatter, jitterScatter, bubbleHeatmap, heatmap,
+         correlationMatrix.
+       • **Radar/Spider (4)**: radarChart, spiderChart, filledRadar,
+         multiRadar.
+       • **Geo (4)**: choroplethMap, bubbleMap, flowMap, geoHeatmap
+         (geografik ma'lumot kerak; mavjud bo'lmasa fallback).
+       • **Flow/Hierarchy (5)**: sankeyDiagram, funnelChart, waterfallChart,
+         ganttChart, treemap.
+       • **Network (3)**: networkGraph, chordDiagram, arcDiagram.
+       • **Display/KPI (5)**: kpiCard, metricTile, progressBar, table,
+         numberCards.
+       Foydalanuvchi qaysi turni aytsa, **aynan o'shani** ishlating — pirovard
+       renderer biror narsa chizadi (ba'zilari custom canvas/SVG bilan).
      - `metric` — asosiy sonli maydon (har kartaga mos: managers uchun
        'revenue'/'won'/'calls', funnel uchun 'count'/'pct' va h.k.).
      - `metrics` — bir nechta birga ko'rsatish kerak bo'lsa massiv (faqat
@@ -694,38 +704,48 @@ def run_agent_analysis(source=None, period=None) -> dict:
 # =============================================================================
 
 # =============================================================================
-# Kengaytirilgan grafik turlari (50+) — frontend renderer hammasini chizadi.
-# Har bir tur Chart.js ning native imkoniyatlariga moslangan; murakkab tiplar
-# (treemap/sankey/candlestick) Chart.js plagini mavjud bo'lmasa, fallback —
-# bar yoki jadval shaklida chiziladi.
+# Kengaytirilgan grafik turlari — to'liq 43 ta canonical nom + aliaslar.
+# Frontend renderer hammasini chizadi: Chart.js core + plaginlar
+# (treemap/sankey/matrix/boxplot/geo) + custom canvas/SVG renderlar
+# (waffle/bullet/bump/sunburst/network/chord/arc va h.k.).
 # =============================================================================
 _VIEWS_FULL = [
-    # ----- Display -----
-    'table', 'kpi', 'sparkline', 'progressBar', 'numberCards',
-    # ----- Bar family (10) -----
-    'bar', 'horizontalBar', 'stackedBar', 'horizontalStackedBar',
-    'groupedBar', 'percentBar', 'stepBar', 'rangeBar', 'waterfallBar',
-    'columnBar',
-    # ----- Line family (8) -----
-    'line', 'smoothLine', 'straightLine', 'steppedLine',
-    'dashedLine', 'multiLine', 'splineLine', 'pointLine',
-    # ----- Area family (6) -----
-    'area', 'stackedArea', 'percentArea', 'smoothArea',
-    'streamArea', 'gradientArea',
-    # ----- Pie family (8) -----
-    'pie', 'doughnut', 'halfPie', 'halfDoughnut',
-    'semicircleDoughnut', 'gauge', 'polarArea', 'nightingaleRose',
-    # ----- Radar / Spider (4) -----
-    'radar', 'filledRadar', 'multiRadar', 'spiderWeb',
-    # ----- Scatter / Bubble (5) -----
-    'scatter', 'bubble', 'connectedScatter', 'jitterScatter',
-    'bubbleHeatmap',
-    # ----- Combo (4) -----
+    # ----- 1. Bar family -----
+    'barChart', 'columnChart', 'groupedBar', 'stackedBar',
+    'horizontalBar', 'horizontalStackedBar', 'percentBar', 'rangeBar',
+    'bulletChart',
+    # ----- 2. Line / Area family -----
+    'lineChart', 'areaChart', 'stackedArea', 'streamGraph',
+    'stepChart', 'bumpChart', 'sparkline',
+    'smoothLine', 'straightLine', 'dashedLine', 'multiLine', 'pointLine',
+    'smoothArea', 'percentArea', 'gradientArea',
+    # ----- 3. Pie / Radial family -----
+    'pieChart', 'doughnutChart', 'halfPie', 'halfDoughnut',
+    'semicircleDoughnut', 'gaugeChart', 'polarArea', 'nightingaleRose',
+    'waffleChart', 'sunburst', 'marimekko',
+    # ----- 4. Distribution -----
+    'histogram', 'boxPlot', 'violinPlot', 'dotPlot', 'densityChart',
+    # ----- 5. Correlation / Scatter -----
+    'scatterPlot', 'bubbleChart', 'connectedScatter', 'jitterScatter',
+    'bubbleHeatmap', 'heatmap', 'correlationMatrix',
+    # ----- 6. Radar / Spider -----
+    'radarChart', 'spiderChart', 'filledRadar', 'multiRadar',
+    # ----- 7. Geo -----
+    'choroplethMap', 'bubbleMap', 'flowMap', 'geoHeatmap',
+    # ----- 8. Flow / Hierarchy -----
+    'sankeyDiagram', 'funnelChart', 'waterfallChart', 'ganttChart',
+    'treemap',
+    # ----- 9. Network -----
+    'networkGraph', 'chordDiagram', 'arcDiagram',
+    # ----- 10. Display / KPI -----
+    'kpiCard', 'metricTile', 'progressBar', 'table', 'numberCards',
+    # ----- Combo -----
     'barLine', 'areaBar', 'dualAxisBar', 'comboMultiAxis',
-    # ----- Special / Advanced (5) -----
-    'heatmap', 'funnelChart', 'treemap', 'sankey', 'gantt',
-    # ----- Legacy alias -----
-    'stacked',  # = stackedBar
+    # ----- Legacy aliaslar (eski kod uchun) -----
+    'bar', 'line', 'area', 'pie', 'doughnut', 'radar', 'spiderWeb',
+    'scatter', 'bubble', 'gauge', 'stacked', 'columnBar', 'stepBar',
+    'waterfallBar', 'splineLine', 'steppedLine', 'kpi', 'gantt',
+    'sankey',
 ]
 
 # Har bir dashboard kartasining "metama'lumoti". AI shu asosda qaysi

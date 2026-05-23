@@ -563,18 +563,63 @@
         });
 
         var vt = spec.viewType;
-        if (vt === 'table') {
-            body.appendChild(buildSpecTable(rows, labels, metrics));
-        } else if (vt === 'kpi') {
-            var kpiValues = rows.map(function (r) { return Number(r[metric]) || 0; });
-            body.appendChild(buildSpecKpi(labels, kpiValues));
+        // Asosiy 10 tur — dashboard'ning lokal render funksiyalari (eski path).
+        var BASIC_VTS = {
+            bar: 1, line: 1, area: 1, pie: 1, doughnut: 1,
+            stacked: 1, horizontalBar: 1, table: 1, kpi: 1,
+        };
+
+        if (BASIC_VTS[vt]) {
+            if (vt === 'table') {
+                body.appendChild(buildSpecTable(rows, labels, metrics));
+            } else if (vt === 'kpi') {
+                var kpiValues = rows.map(function (r) { return Number(r[metric]) || 0; });
+                body.appendChild(buildSpecKpi(labels, kpiValues));
+            } else {
+                var area = document.createElement('div');
+                area.className = 'dash-chart-area';
+                var canvas = document.createElement('canvas');
+                area.appendChild(canvas);
+                body.appendChild(area);
+                drawSpecChart(card, canvas, vt, labels, rows, metrics);
+            }
+            return;
+        }
+
+        // Kengaytirilgan 43 turidan biri — AIChartRender shared modulga
+        // delegate qilamiz. Rows va metrics ni unga mos labels+datasets ga
+        // aylantiramiz.
+        var sharedSpec = {
+            card: card,
+            card_label: (meta && meta.label) || (CARD_META[card] && CARD_META[card].cat) || card,
+            viewType: vt,
+            title: spec.title || '',
+            labels: labels,
+            datasets: metrics.map(function (m) {
+                return {
+                    label: metricLabel(m),
+                    metric: m,
+                    data: rows.map(function (r) { return Number(r[m]) || 0; }),
+                };
+            }),
+            metric: metric,
+            metrics: metrics,
+            sortBy: spec.sortBy || '',
+            sortDir: spec.sortDir || 'desc',
+            limit: spec.limit || 0,
+        };
+        var area2 = document.createElement('div');
+        area2.className = 'dash-chart-area';
+        area2.style.cssText = 'position:relative;min-height:240px;';
+        body.appendChild(area2);
+        if (window.AIChartRender && typeof window.AIChartRender.renderInto === 'function') {
+            window.AIChartRender.renderInto(area2, sharedSpec);
         } else {
-            var area = document.createElement('div');
-            area.className = 'dash-chart-area';
-            var canvas = document.createElement('canvas');
-            area.appendChild(canvas);
-            body.appendChild(area);
-            drawSpecChart(card, canvas, vt, labels, rows, metrics);
+            // Fallback — VIEW_NORMALIZE va eski path
+            var normalized = VIEW_NORMALIZE[vt] || 'bar';
+            var canvas2 = document.createElement('canvas');
+            area2.appendChild(canvas2);
+            drawSpecChart(card, canvas2, normalized, labels, rows, metrics);
         }
     }
 
@@ -947,61 +992,71 @@
     }
 
     // Dashboard renderer faqat asosiy 8 turni biladi. Chat'dan kengaytirilgan
-    // 45+ tur kelsa, eng yaqin asosiy turga normallashtiramiz.
+    // 43+ tur kelsa, eng yaqin asosiy turga normallashtiramiz.
     var VIEW_NORMALIZE = {
-        // bar oilasi
-        bar: 'bar', columnBar: 'bar', groupedBar: 'bar',
-        horizontalBar: 'horizontalBar', stackedBar: 'stacked',
-        horizontalStackedBar: 'horizontalBar', stacked: 'stacked',
-        percentBar: 'stacked', stepBar: 'bar', rangeBar: 'bar',
-        waterfallBar: 'bar',
-        // line oilasi
-        line: 'line', splineLine: 'line', smoothLine: 'line',
-        straightLine: 'line', steppedLine: 'line', dashedLine: 'line',
-        multiLine: 'line', pointLine: 'line',
-        // area oilasi
-        area: 'area', smoothArea: 'area', stackedArea: 'area',
-        streamArea: 'area', percentArea: 'area', gradientArea: 'area',
-        // pie oilasi
-        pie: 'pie', doughnut: 'doughnut', halfPie: 'pie',
-        halfDoughnut: 'doughnut', semicircleDoughnut: 'doughnut',
+        // Bar oilasi
+        barChart: 'bar', bar: 'bar', columnChart: 'bar', columnBar: 'bar',
+        groupedBar: 'bar', stackedBar: 'stacked', stacked: 'stacked',
+        horizontalBar: 'horizontalBar', horizontalStackedBar: 'horizontalBar',
+        percentBar: 'stacked', rangeBar: 'bar', bulletChart: 'horizontalBar',
+        stepBar: 'bar', waterfallBar: 'bar', waterfallChart: 'bar',
+        // Line oilasi
+        lineChart: 'line', line: 'line', smoothLine: 'line', splineLine: 'line',
+        straightLine: 'line', steppedLine: 'line', stepChart: 'line',
+        dashedLine: 'line', multiLine: 'line', pointLine: 'line',
+        bumpChart: 'line', sparkline: 'line',
+        // Area oilasi
+        areaChart: 'area', area: 'area', smoothArea: 'area',
+        stackedArea: 'area', streamGraph: 'area', streamArea: 'area',
+        percentArea: 'area', gradientArea: 'area',
+        // Pie / Radial
+        pieChart: 'pie', pie: 'pie', doughnutChart: 'doughnut',
+        doughnut: 'doughnut', halfPie: 'pie', halfDoughnut: 'doughnut',
+        semicircleDoughnut: 'doughnut', gaugeChart: 'doughnut',
         gauge: 'doughnut', polarArea: 'pie', nightingaleRose: 'pie',
-        // radar, scatter — dashboard'da yo'q, bar ga qaytaramiz
-        radar: 'bar', filledRadar: 'bar', multiRadar: 'bar',
-        spiderWeb: 'bar', scatter: 'bar', bubble: 'bar',
-        connectedScatter: 'line', jitterScatter: 'bar',
-        bubbleHeatmap: 'bar',
-        // combo
+        waffleChart: 'pie', sunburst: 'doughnut', marimekko: 'stacked',
+        // Distribution
+        histogram: 'bar', boxPlot: 'bar', violinPlot: 'bar',
+        dotPlot: 'bar', densityChart: 'line',
+        // Scatter / Correlation
+        scatterPlot: 'bar', scatter: 'bar', bubbleChart: 'bar', bubble: 'bar',
+        connectedScatter: 'line', jitterScatter: 'bar', bubbleHeatmap: 'bar',
+        heatmap: 'horizontalBar', correlationMatrix: 'horizontalBar',
+        // Radar / Spider
+        radarChart: 'bar', radar: 'bar', spiderChart: 'bar', spiderWeb: 'bar',
+        filledRadar: 'bar', multiRadar: 'bar',
+        // Geo (fallback bar)
+        choroplethMap: 'horizontalBar', bubbleMap: 'bar',
+        flowMap: 'horizontalBar', geoHeatmap: 'horizontalBar',
+        // Flow / Hierarchy
+        sankeyDiagram: 'horizontalBar', sankey: 'horizontalBar',
+        funnelChart: 'horizontalBar', ganttChart: 'horizontalBar',
+        gantt: 'horizontalBar', treemap: 'horizontalBar',
+        // Network
+        networkGraph: 'bar', chordDiagram: 'pie', arcDiagram: 'line',
+        // Combo
         barLine: 'bar', areaBar: 'area', dualAxisBar: 'bar',
         comboMultiAxis: 'bar',
-        // special — fallback
-        heatmap: 'horizontalBar', funnelChart: 'horizontalBar',
-        treemap: 'horizontalBar', sankey: 'horizontalBar',
-        gantt: 'horizontalBar',
-        // display
-        table: 'table', kpi: 'kpi', numberCards: 'kpi',
-        progressBar: 'horizontalBar', sparkline: 'line',
+        // Display
+        kpiCard: 'kpi', kpi: 'kpi', metricTile: 'kpi', numberCards: 'kpi',
+        progressBar: 'horizontalBar', table: 'table',
     };
 
-    // Spec server tomondan kelgan view-spec emas, balki chatdagi spec.
-    // Uni mavjud applyViewSpec funksiyasi tushunadigan formatga moslaymiz.
+    // Chat'dan kelgan spec'ni applyViewSpec uchun moslaymiz. Endi
+    // renderSpecContent AIChartRender'ga delegate qilgani uchun, 43 turning
+    // hammasi to'g'ridan-to'g'ri ishlaydi — normalize qilish shart emas.
     function applySpecFromChat(card, spec) {
         if (!spec) { return false; }
-        var vt = spec.viewType || 'bar';
-        var normalized = VIEW_NORMALIZE[vt] || 'bar';
-        var compatSpec = {
-            viewType: normalized,
+        applyViewSpec(card, {
+            viewType: spec.viewType || 'bar',
             metric: spec.metric || (spec.metrics && spec.metrics[0]),
             metrics: spec.metrics || [],
             sortBy: spec.sortBy || '',
             sortDir: spec.sortDir || 'desc',
             limit: Number(spec.limit) || 0,
             title: spec.title || '',
-            note: (vt !== normalized
-                   ? ('Chatdan kelgan "' + vt + '" turi "' + normalized + '" sifatida chizildi.')
-                   : ''),
-        };
-        applyViewSpec(card, compatSpec);
+            note: '',
+        });
         return true;
     }
 
@@ -1039,26 +1094,24 @@
                         'data-custom-id="' + item.id + '">✕ O\'chirish</button>' +
                 '</div>' +
             '</div>' +
-            '<div class="dash-chart-area" style="position:relative;height:280px;">' +
-                '<canvas></canvas>' +
-            '</div>';
+            '<div class="dash-chart-area" style="position:relative;min-height:280px;"></div>';
         host.appendChild(el);
 
-        var canvas = el.querySelector('canvas');
+        var area = el.querySelector('.dash-chart-area');
         var btn = el.querySelector('[data-custom-id]');
         btn.addEventListener('click', function () { removeCustomCard(item.id); });
 
-        // Spec ni dashboard-dagi mavjud `drawSpecChart` ga moslashtiramiz —
-        // bu yo'l bilan barcha 45+ tur (normalize qilingan) ishlaydi.
-        var vt = (VIEW_NORMALIZE[item.spec.viewType] || 'bar');
-        try {
-            // Datasets'ni rows shaklida tayyorlash o'rniga to'g'ridan-to'g'ri
-            // Chart.js config qurib chizamiz — server allaqachon labels va
-            // datasets[].data berib qo'ygan.
-            renderCustomChart(canvas, item.spec, vt);
-        } catch (e) {
-            el.querySelector('.dash-chart-area').textContent =
-                'Grafik xato: ' + e.message;
+        // Server pre-built labels+datasets bilan spec berib qo'ygan, shuni
+        // AIChartRender'ga to'g'ridan-to'g'ri uzatamiz — 43 turning hammasi
+        // ishlaydi.
+        if (window.AIChartRender && typeof window.AIChartRender.renderInto === 'function') {
+            try { window.AIChartRender.renderInto(area, item.spec); }
+            catch (e) { area.textContent = 'Grafik xato: ' + e.message; }
+        } else {
+            var canvas = document.createElement('canvas');
+            area.appendChild(canvas);
+            renderCustomChart(canvas, item.spec,
+                              VIEW_NORMALIZE[item.spec.viewType] || 'bar');
         }
     }
 

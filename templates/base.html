@@ -14,12 +14,23 @@
     <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 
+    <!-- Chart.js qo'shimcha plaginlar (treemap, sankey, matrix/heatmap,
+         box/violin plot, geo xaritalar uchun) — agent yoki widget tomonidan
+         chaqirilganda yuklanadi. -->
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-treemap@2.3.1/dist/chartjs-chart-treemap.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-sankey@0.12.1/dist/chartjs-chart-sankey.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-matrix@2.0.1/dist/chartjs-chart-matrix.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@sgratzl/chartjs-chart-boxplot@4.4.4/build/index.umd.min.js"></script>
+
     <!-- Marked.js (Markdown render) -->
     <script src="https://cdn.jsdelivr.net/npm/marked@12.0.0/marked.min.js"></script>
 
     <!-- CSS -->
     {% load static %}
     <link rel="stylesheet" href="{% static 'css/dashboard.css' %}">
+
+    <!-- Shared chart renderer (43 ta tur) — ham widget, ham dashboard ishlatadi. -->
+    <script src="{% static 'js/chart_render.js' %}"></script>
 
     <meta name="csrf-token" content="{{ csrf_token }}">
     {% block extra_head %}{% endblock %}
