@@ -321,7 +321,11 @@
                     'Content-Type': 'application/json',
                     'X-CSRFToken': csrfToken(),
                 },
-                body: JSON.stringify({ message: text, manager_id: 0 }),
+                body: JSON.stringify({
+                    message: text,
+                    manager_id: 0,
+                    source: window.__crmSource || '',
+                }),
             })
                 .then(function (r) {
                     return r.json().then(function (j) { return { ok: r.ok, data: j }; });

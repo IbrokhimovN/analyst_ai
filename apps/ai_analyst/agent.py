@@ -160,6 +160,95 @@ def _build_tools(source=None, period=None):
     ]
 
 
+def chat_with_agent(question: str, manager_id: int = 0,
+                    source=None, period=None) -> dict:
+    """Erkin suhbat — AgentExecutor + DB tool'lar + suhbat memory.
+
+    Widget va `/ai-chat/` sahifasi shu funksiyani chaqiradi. Foydalanuvchi
+    konversiya, sotuv, menejerlar haqida savol berganda agent avval mos
+    tool'larni chaqirib real ma'lumotni o'qiydi, keyin javob beradi —
+    foydalanuvchidan raqam so'ramaydi.
+
+    Args:
+        question: foydalanuvchi savoli.
+        manager_id: suhbat egasi IDsi (umumiy uchun 0).
+        source: CRM filtri — ``'amocrm'`` | ``'bitrix'`` | ``None``.
+        period: davr filtri — ``'day'`` | ``'week'`` | ``'month'`` | ``None``.
+
+    Returns:
+        ``{'answer': str, 'sources': list[str], 'used_rag': bool, 'steps': list[str]}``.
+    """
+    from langchain.agents import AgentExecutor, create_tool_calling_agent
+    from langchain.prompts import ChatPromptTemplate, MessagesPlaceholder
+
+    from . import memory as memory_mod
+
+    question = (question or '').strip()
+    if not question:
+        return {'answer': 'Savol bo\'sh.', 'sources': [],
+                'used_rag': False, 'steps': []}
+
+    tools = _build_tools(source, period)
+
+    chat_system = (
+        'Siz savdo dashboardining AI yordamchisisiz. Sizga real bazaga ulangan '
+        'tool\'lar berilgan: dashboard_summary, manager_performance, sales_funnel, '
+        'conversions_data, daily_dynamics, loss_reasons, followup_data, '
+        'best_days_data. '
+        '\n\nMUHIM QOIDALAR:\n'
+        '1. Foydalanuvchidan HECH QACHON raqam, statistika yoki ma\'lumot SO\'RAMANG. '
+        'Barcha ma\'lumot tool\'lar orqali mavjud — kerakli tool\'ni chaqiring va '
+        'real DB qiymatlaridan javob bering.\n'
+        '2. "Konversiya", "sotuv", "menejer", "voronka", "kunlik dinamika", '
+        '"yutqazish sabablari" kabi savollarga mos tool\'ni chaqiring.\n'
+        '3. Tool\'dan kelgan natijani aniq raqamlar bilan ko\'rsating '
+        '(masalan: "Konversiya: 23.4%, jami lidlar: 1240, sotuvlar: 290").\n'
+        '4. Javob o\'zbek tilida, qisqa va aniq. Markdown ishlatish mumkin.\n'
+        '5. Agar savol tizim ma\'lumotlariga taalluqli bo\'lmasa (umumiy salom-'
+        'alik, savdo maslahati va h.k.) — tool chaqirmasdan javob bering.'
+    )
+
+    mem = memory_mod.build_memory(manager_id,
+                                  input_key='input', output_key='output')
+    history_msgs = mem.chat_memory.messages
+
+    prompt = ChatPromptTemplate.from_messages([
+        ('system', chat_system),
+        MessagesPlaceholder('history'),
+        ('human', '{input}'),
+        MessagesPlaceholder('agent_scratchpad'),
+    ])
+
+    agent = create_tool_calling_agent(get_llm(temperature=0.3), tools, prompt)
+    executor = AgentExecutor(
+        agent=agent, tools=tools, max_iterations=MAX_ITERATIONS,
+        handle_parsing_errors=True, return_intermediate_steps=True,
+        verbose=False,
+    )
+
+    result = executor.invoke({'input': question, 'history': history_msgs})
+
+    output = result['output']
+    if isinstance(output, list):
+        output = '\n'.join(
+            b.get('text', '') if isinstance(b, dict) else str(b)
+            for b in output
+        )
+
+    steps = [getattr(a, 'tool', 'tool')
+             for a, _ in result.get('intermediate_steps', [])]
+
+    # Suhbat tarixini bazaga yozamiz.
+    try:
+        memory_mod.save_turn(manager_id, question, output)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning('Memory save xato: %s', exc)
+
+    logger.info('Chat agent: manager=%s, tools=%s', manager_id, steps)
+    return {'answer': output, 'sources': [],
+            'used_rag': False, 'steps': steps}
+
+
 def run_agent_analysis(source=None, period=None) -> dict:
     """Dashboard ma'lumotlarini AgentExecutor orqali avtomatik tahlil qiladi.
 

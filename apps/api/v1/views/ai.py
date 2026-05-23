@@ -174,8 +174,26 @@ class AIChatView(APIView):
         except (TypeError, ValueError):
             manager_id = 0
 
+        source = _clean_source(request.data.get('source') or
+                               request.query_params.get('source'))
+        period = _clean_period(request.data.get('period') or
+                               request.query_params.get('period'))
+
+        # Avval RAG (yuklangan hujjat bo'lsa), aks holda agent (DB tool'lari
+        # bilan) — agent foydalanuvchidan raqam so'ramaydi, real DB dan o'qiydi.
         try:
-            result = rag_mod.answer_question(question, manager_id=manager_id)
+            if rag_mod.index_exists():
+                result = rag_mod.answer_question(question, manager_id=manager_id)
+                return Response({
+                    'question': question,
+                    'answer': result['answer'],
+                    'sources': result['sources'],
+                    'used_rag': result['used_rag'],
+                })
+            result = agent_mod.chat_with_agent(
+                question, manager_id=manager_id,
+                source=source, period=period,
+            )
         except Exception as exc:  # noqa: BLE001
             logger.error('AI chat xatolik: %s', exc)
             return Response({'error': str(exc)},
@@ -184,8 +202,9 @@ class AIChatView(APIView):
         return Response({
             'question': question,
             'answer': result['answer'],
-            'sources': result['sources'],
-            'used_rag': result['used_rag'],
+            'sources': result.get('sources', []),
+            'used_rag': result.get('used_rag', False),
+            'steps': result.get('steps', []),
         })
 
 
