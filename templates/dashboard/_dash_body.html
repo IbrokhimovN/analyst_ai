@@ -113,7 +113,7 @@
             <div class="dash-rings">
                 {% for c in conversions %}
                 <div class="dash-ring-item">
-                    <div class="dash-ring" style="--pct:{{ c.pct }}; --ring-color:{{ c.color }}">
+                    <div class="dash-ring" style="--deg:{% widthratio c.pct 10 36 %}deg; --ring-color:{{ c.color }}">
                         <span class="dash-ring-val">{{ c.pct }}%</span>
                     </div>
                     <div class="dash-ring-label">{{ c.label }}</div>

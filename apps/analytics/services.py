@@ -343,18 +343,77 @@ class AnalyticsService:
         ]
 
     def get_loss_reasons(self, source=None, limit=5, period=None):
-        """Yutqazish sabablari — eng ko'p uchragan loss_reason qiymatlari."""
-        lost = (
-            self._base_queryset(source, period)
-            .filter(status_id=LOST_STATUS_ID)
-            .exclude(loss_reason='')
+        """Yutqazish sabablari — eng ko'p uchragan loss_reason qiymatlari.
+
+        Agar CRM da loss_reason kiritilmagan bo'lsa, yutqazilgan lidlar
+        pipeline + menejer bo'yicha guruhlanib ko'rsatiladi.
+        """
+        all_lost = self._base_queryset(source, period).filter(
+            status_id=LOST_STATUS_ID
         )
-        rows = (
-            lost.values('loss_reason')
+
+        # 1. Avval haqiqiy loss_reason maydoni bo'yicha guruhlash
+        with_reason = all_lost.exclude(loss_reason='').exclude(
+            loss_reason__isnull=True
+        )
+        rows = list(
+            with_reason.values('loss_reason')
             .annotate(count=Count('id'))
             .order_by('-count')[:limit]
         )
-        return [{'reason': r['loss_reason'], 'count': r['count']} for r in rows]
+        if rows:
+            return [{'reason': r['loss_reason'], 'count': r['count']}
+                    for r in rows]
+
+        # 2. Fallback — pipeline + menejer bo'yicha guruhlash
+        #    (pipeline va menejer nomlarini birlashtiradi)
+        from apps.amocrm.models import User as AmoCRMUser
+
+        combo_rows = list(
+            all_lost.values('pipeline_ref__name', 'responsible_user_id')
+            .annotate(count=Count('id'))
+            .order_by('-count')[:limit]
+        )
+        if combo_rows:
+            user_ids = [r['responsible_user_id'] for r in combo_rows]
+            user_names = dict(
+                AmoCRMUser.objects.filter(
+                    amocrm_id__in=user_ids
+                ).values_list('amocrm_id', 'name')
+            )
+            return [{
+                'reason': '{} — {}'.format(
+                    r['pipeline_ref__name'] or 'Noma\'lum',
+                    user_names.get(r['responsible_user_id'],
+                                   f"#{r['responsible_user_id']}")
+                ),
+                'count': r['count'],
+            } for r in combo_rows]
+
+        # 3. Fallback — faqat menejer bo'yicha
+        manager_rows = list(
+            all_lost.values('responsible_user_id')
+            .annotate(count=Count('id'))
+            .order_by('-count')[:limit]
+        )
+        if manager_rows:
+            user_names = dict(
+                AmoCRMUser.objects.filter(
+                    amocrm_id__in=[r['responsible_user_id']
+                                   for r in manager_rows]
+                ).values_list('amocrm_id', 'name')
+            )
+            return [{
+                'reason': user_names.get(r['responsible_user_id'],
+                                         f"#{r['responsible_user_id']}"),
+                'count': r['count'],
+            } for r in manager_rows]
+
+        # 4. Hech narsa yo'q
+        total_lost = all_lost.count()
+        if total_lost:
+            return [{'reason': 'Sabab ko\'rsatilmagan', 'count': total_lost}]
+        return []
 
     def get_best_days(self, source=None, limit=3, period=None):
         """Hafta kunlari bo'yicha eng samarali kunlar."""
