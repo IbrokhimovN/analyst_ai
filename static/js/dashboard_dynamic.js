@@ -38,10 +38,14 @@
 
     // Kartalarning ma'lumot manbai (json_script id) va kategoriya maydoni.
     var CARD_META = {
-        funnel:   { json: 'funnel-data',   cat: 'name' },
-        managers: { json: 'managers-data', cat: 'manager_name' },
-        loss:     { json: 'loss-data',     cat: 'reason' },
-        finance:  { json: 'finance-data',  cat: null },
+        funnel:      { json: 'funnel-data',      cat: 'name' },
+        managers:    { json: 'managers-data',    cat: 'manager_name' },
+        loss:        { json: 'loss-data',        cat: 'reason' },
+        finance:     { json: 'finance-data',     cat: null },
+        conversions: { json: 'conversions-data', cat: 'label' },
+        daily:       { json: 'daily-data',       cat: 'date' },
+        followup:    { json: 'followup-data',    cat: 'manager_name' },
+        best_days:   { json: 'best-days-data',   cat: 'day' },
     };
 
     // Metrik kalitlari uchun o'zbekcha sarlavhalar (jadval/grafik uchun).
@@ -50,6 +54,10 @@
         calls: 'Call', conversations: 'Conversation', total_leads: 'Lidlar',
         conversion_rate: 'Konversiya, %', convo_rate: 'Convo, %',
         sale_rate: 'Sale, %', lead_to_sale: 'Lid->Sale, %', value: 'Qiymat',
+        num: 'Soni', den: 'Umumiy', leads: 'Lid', sales: 'Sotuv',
+        conversion: 'Konversiya, %', lost: 'Yutqazgan',
+        total_revenue: 'Tushum', avg_deal: "O'rtacha chek",
+        lead_value: '1 lid qiymati', sale_value: '1 sale qiymati',
     };
 
     // =========================================================================
@@ -433,18 +441,46 @@
         if (card === 'finance') {
             var f = raw || {};
             return [
-                { _label: 'Umumiy tushum',  value: Number(f.total_revenue) || 0 },
-                { _label: "O'rtacha chek",  value: Number(f.avg_deal) || 0 },
-                { _label: '1 lid qiymati',  value: Number(f.lead_value) || 0 },
-                { _label: '1 sale qiymati', value: Number(f.sale_value) || 0 },
+                { _label: 'Umumiy tushum',  value: Number(f.total_revenue) || 0,
+                  total_revenue: Number(f.total_revenue) || 0,
+                  avg_deal: Number(f.avg_deal) || 0,
+                  lead_value: Number(f.lead_value) || 0,
+                  sale_value: Number(f.sale_value) || 0 },
+                { _label: "O'rtacha chek",  value: Number(f.avg_deal) || 0,
+                  total_revenue: Number(f.total_revenue) || 0,
+                  avg_deal: Number(f.avg_deal) || 0,
+                  lead_value: Number(f.lead_value) || 0,
+                  sale_value: Number(f.sale_value) || 0 },
+                { _label: '1 lid qiymati',  value: Number(f.lead_value) || 0,
+                  total_revenue: Number(f.total_revenue) || 0,
+                  avg_deal: Number(f.avg_deal) || 0,
+                  lead_value: Number(f.lead_value) || 0,
+                  sale_value: Number(f.sale_value) || 0 },
+                { _label: '1 sale qiymati', value: Number(f.sale_value) || 0,
+                  total_revenue: Number(f.total_revenue) || 0,
+                  avg_deal: Number(f.avg_deal) || 0,
+                  lead_value: Number(f.lead_value) || 0,
+                  sale_value: Number(f.sale_value) || 0 },
             ];
         }
         return Array.isArray(raw) ? raw.slice() : [];
     }
 
     function defaultMetric(card) {
-        return { funnel: 'count', managers: 'revenue',
-                 loss: 'count', finance: 'value' }[card];
+        return {
+            funnel: 'count', managers: 'revenue', loss: 'count',
+            finance: 'value', conversions: 'pct', daily: 'leads',
+            followup: 'lost', best_days: 'leads',
+        }[card];
+    }
+
+    // 'YYYY-MM-DD' -> 'DD.MM' (daily chartda sanani qisqartirish uchun).
+    function shortLabel(card, val) {
+        if (card === 'daily' && /^\d{4}-\d{2}-\d{2}$/.test(val)) {
+            var p = val.split('-');
+            return p[2] + '.' + p[1];
+        }
+        return val;
     }
 
     // AI view-spec ni kartaga qo'llaydi.
@@ -499,9 +535,17 @@
         var meta = CARD_META[card];
         var rows = cardRows(card);
 
-        // Metrikni tekshiramiz — yaroqsiz bo'lsa standartga qaytamiz.
-        var metric = (card === 'finance') ? 'value' : spec.metric;
+        // Asosiy metrikni tekshiramiz — yaroqsiz bo'lsa standartga qaytamiz.
+        var metric = (card === 'finance' && (!spec.metric || !(spec.metric in (rows[0] || {}))))
+                     ? 'value' : spec.metric;
         if (!rows.length || !(metric in rows[0])) { metric = defaultMetric(card); }
+
+        // Multi-metric: bo'sh yoki yaroqsizlarni tozalaymiz.
+        var metrics = Array.isArray(spec.metrics) ? spec.metrics.slice() : [];
+        metrics = metrics.filter(function (m) {
+            return rows.length && (m in rows[0]);
+        });
+        if (!metrics.length) { metrics = [metric]; }
 
         // Saralash
         if (spec.sortBy && rows.length && (spec.sortBy in rows[0])) {
@@ -514,37 +558,43 @@
         if (spec.limit && spec.limit > 0) { rows = rows.slice(0, spec.limit); }
 
         var labels = rows.map(function (r) {
-            return card === 'finance' ? r._label : r[meta.cat];
+            if (card === 'finance') { return r._label; }
+            return shortLabel(card, r[meta.cat]);
         });
-        var values = rows.map(function (r) { return Number(r[metric]) || 0; });
 
         var vt = spec.viewType;
         if (vt === 'table') {
-            body.appendChild(buildSpecTable(labels, values, metric));
+            body.appendChild(buildSpecTable(rows, labels, metrics));
         } else if (vt === 'kpi') {
-            body.appendChild(buildSpecKpi(labels, values));
+            var kpiValues = rows.map(function (r) { return Number(r[metric]) || 0; });
+            body.appendChild(buildSpecKpi(labels, kpiValues));
         } else {
             var area = document.createElement('div');
             area.className = 'dash-chart-area';
             var canvas = document.createElement('canvas');
             area.appendChild(canvas);
             body.appendChild(area);
-            drawSpecChart(card, canvas, vt, labels, values, metric);
+            drawSpecChart(card, canvas, vt, labels, rows, metrics);
         }
     }
 
-    function buildSpecTable(labels, values, metric) {
+    function buildSpecTable(rows, labels, metrics) {
         var wrap = document.createElement('div');
         wrap.className = 'dash-table-wrap';
-        var rows = labels.map(function (l, i) {
-            return '<tr><td class="dt-name">' + esc(l) + '</td><td>' +
-                   fmt(values[i]) + '</td></tr>';
+        var head = '<th>Nomi</th>' + metrics.map(function (m) {
+            return '<th>' + esc(metricLabel(m)) + '</th>';
         }).join('');
-        wrap.innerHTML =
-            '<table class="dash-table"><thead><tr><th>Nomi</th><th>' +
-            esc(metricLabel(metric)) + '</th></tr></thead><tbody>' +
-            (rows || '<tr><td colspan="2" class="dash-empty">Ma\'lumot yo\'q</td></tr>') +
-            '</tbody></table>';
+        var bodyRows = rows.map(function (r, i) {
+            var cells = metrics.map(function (m) {
+                return '<td>' + fmt(r[m]) + '</td>';
+            }).join('');
+            return '<tr><td class="dt-name">' + esc(labels[i]) + '</td>' + cells + '</tr>';
+        }).join('');
+        var empty = '<tr><td colspan="' + (metrics.length + 1) +
+                    '" class="dash-empty">Ma\'lumot yo\'q</td></tr>';
+        wrap.innerHTML = '<table class="dash-table"><thead><tr>' + head +
+                         '</tr></thead><tbody>' + (bodyRows || empty) +
+                         '</tbody></table>';
         return wrap;
     }
 
@@ -559,53 +609,100 @@
         return box;
     }
 
-    function drawSpecChart(card, canvas, viewType, labels, values, metric) {
+    // Bitta metrik uchun rang (palitra orqali).
+    function metricColor(i) { return PALETTE[i % PALETTE.length]; }
+
+    function drawSpecChart(card, canvas, viewType, labels, rows, metrics) {
         if (typeof Chart === 'undefined') { return; }
         var c = themeColors();
-        var colors = labels.map(function (_, i) { return PALETTE[i % PALETTE.length]; });
+        var multi = metrics.length > 1;
         var cfg;
 
-        if (viewType === 'pie') {
+        // ---- Pie / doughnut — faqat birinchi metric ishlatiladi ----
+        if (viewType === 'pie' || viewType === 'doughnut') {
+            var m0 = metrics[0];
+            var values = rows.map(function (r) { return Number(r[m0]) || 0; });
+            var sliceColors = labels.map(function (_, i) {
+                return PALETTE[i % PALETTE.length];
+            });
             cfg = {
-                type: 'pie',
+                type: viewType === 'doughnut' ? 'doughnut' : 'pie',
                 data: { labels: labels, datasets: [{
-                    data: values, backgroundColor: colors,
+                    label: metricLabel(m0), data: values,
+                    backgroundColor: sliceColors,
                     borderColor: c.isDark ? '#0a0a1c' : '#ffffff', borderWidth: 2,
                 }] },
                 options: {
                     responsive: true, maintainAspectRatio: false,
-                    plugins: { legend: { position: 'right',
-                        labels: { color: c.tick, usePointStyle: true,
-                                  font: { family: 'Inter', size: 11 } } } },
+                    plugins: {
+                        legend: { position: 'right',
+                            labels: { color: c.tick, usePointStyle: true,
+                                      font: { family: 'Inter', size: 11 } } },
+                        title: { display: !!metricLabel(m0),
+                            text: metricLabel(m0), color: c.tick,
+                            font: { family: 'Inter', size: 12 } },
+                    },
                 },
             };
-        } else if (viewType === 'line') {
-            cfg = {
-                type: 'line',
-                data: { labels: labels, datasets: [{
-                    label: metricLabel(metric), data: values,
-                    borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.15)',
-                    borderWidth: 2.5, tension: 0.4, pointRadius: 3, fill: true,
-                }] },
-                options: barLineOptions(c),
-            };
-        } else {  // bar (standart)
-            cfg = {
-                type: 'bar',
-                data: { labels: labels, datasets: [{
-                    label: metricLabel(metric), data: values,
-                    backgroundColor: colors, borderRadius: 6,
-                }] },
-                options: barLineOptions(c),
-            };
+            charts['custom-' + card] = new Chart(canvas, cfg);
+            return;
         }
+
+        // ---- Bar / line / area / stacked / horizontalBar ----
+        var datasets = metrics.map(function (m, idx) {
+            var data = rows.map(function (r) { return Number(r[m]) || 0; });
+            var color = metricColor(idx);
+            if (viewType === 'line' || viewType === 'area') {
+                return {
+                    type: 'line', label: metricLabel(m), data: data,
+                    borderColor: color,
+                    backgroundColor: viewType === 'area'
+                        ? hexToRgba(color, 0.18) : color,
+                    borderWidth: 2.5, tension: 0.4, pointRadius: 3,
+                    fill: viewType === 'area',
+                };
+            }
+            // bar / stacked / horizontalBar — multi bo'lsa har metric o'z rangi
+            return {
+                type: 'bar', label: metricLabel(m), data: data,
+                backgroundColor: multi ? color
+                    : labels.map(function (_, i) { return PALETTE[i % PALETTE.length]; }),
+                borderRadius: 6,
+            };
+        });
+
+        var isHoriz = viewType === 'horizontalBar';
+        var stacked = viewType === 'stacked';
+        var chartType = (viewType === 'line' || viewType === 'area')
+                        ? 'line' : 'bar';
+
+        var opts = barLineOptions(c, multi);
+        if (isHoriz) { opts.indexAxis = 'y'; }
+        if (stacked) {
+            opts.scales.x.stacked = true;
+            opts.scales.y.stacked = true;
+        }
+
+        cfg = { type: chartType, data: { labels: labels, datasets: datasets },
+                options: opts };
         charts['custom-' + card] = new Chart(canvas, cfg);
     }
 
-    function barLineOptions(c) {
+    // #rrggbb -> rgba(...)
+    function hexToRgba(hex, alpha) {
+        var m = /^#?([0-9a-f]{6})$/i.exec(hex || '');
+        if (!m) { return hex; }
+        var n = parseInt(m[1], 16);
+        var r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
+        return 'rgba(' + r + ',' + g + ',' + b + ',' + alpha + ')';
+    }
+
+    function barLineOptions(c, showLegend) {
         return {
             responsive: true, maintainAspectRatio: false,
-            plugins: { legend: { display: false } },
+            plugins: { legend: { display: !!showLegend, position: 'top',
+                labels: { color: c.tick, usePointStyle: true,
+                          font: { family: 'Inter', size: 11 } } } },
             scales: {
                 x: { ticks: { color: c.tick }, grid: { display: false } },
                 y: { beginAtZero: true, ticks: { color: c.tick },

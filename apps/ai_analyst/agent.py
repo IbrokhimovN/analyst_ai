@@ -69,6 +69,27 @@ def _build_tools(source=None, period=None):
         return json.dumps(svc.get_loss_reasons(source=source, period=period),
                           ensure_ascii=False)
 
+    def _conversions(_input: str = '') -> str:
+        """Asosiy konversiya nisbatlari (rings)."""
+        return json.dumps(svc.get_conversions(source, period),
+                          ensure_ascii=False)
+
+    def _daily(_input: str = '') -> str:
+        """Kunlik dinamika (lid/sotuv/konversiya kun bo'yicha)."""
+        return json.dumps(svc.get_daily_dynamics(source=source),
+                          ensure_ascii=False)
+
+    def _followup(_input: str = '') -> str:
+        """Follow-up — qoldirilgan lidlar (menejer kesimida)."""
+        managers = svc.get_by_manager(source=source, period=period)
+        rows = [m for m in managers if m.get('lost')][:10] or managers[:10]
+        return json.dumps(rows, ensure_ascii=False)
+
+    def _best_days(_input: str = '') -> str:
+        """Eng samarali hafta kunlari."""
+        return json.dumps(svc.get_best_days(source=source, period=period),
+                          ensure_ascii=False)
+
     return [
         Tool(
             name='dashboard_summary',
@@ -103,6 +124,37 @@ def _build_tools(source=None, period=None):
             description=(
                 'Bitimlarni yutqazish sabablari va ularning soni. '
                 'Argumentsiz chaqiriladi.'
+            ),
+        ),
+        Tool(
+            name='conversions_data',
+            func=_conversions,
+            description=(
+                'Asosiy konversiya nisbatlari: Call→Conversation, '
+                'Conversation→Sale, Lid→Sale. Argumentsiz chaqiriladi.'
+            ),
+        ),
+        Tool(
+            name='daily_dynamics',
+            func=_daily,
+            description=(
+                'Kunlik dinamika — har kun bo\'yicha lidlar, sotuvlar va '
+                'konversiya foizi. Argumentsiz chaqiriladi.'
+            ),
+        ),
+        Tool(
+            name='followup_data',
+            func=_followup,
+            description=(
+                'Follow-up — menejerlar bo\'yicha qoldirilgan/yutqazgan va '
+                'qayta yopilgan bitimlar. Argumentsiz chaqiriladi.'
+            ),
+        ),
+        Tool(
+            name='best_days_data',
+            func=_best_days,
+            description=(
+                'Hafta kunlari bo\'yicha eng samarali kunlar. Argumentsiz.'
             ),
         ),
     ]
@@ -172,6 +224,13 @@ def run_agent_analysis(source=None, period=None) -> dict:
 # foydalanuvchi istagiga moslab o'zgartirish (dinamik dashboard uchun).
 # =============================================================================
 
+# Barcha kartalarda ruxsat etiladigan grafik turlari (multi-metric ham
+# ishlaydi). Frontend `drawSpecChart` shularning hammasini chizadi.
+_VIEWS_FULL = [
+    'table', 'bar', 'line', 'area', 'pie', 'doughnut',
+    'horizontalBar', 'stacked',
+]
+
 # Har bir dashboard kartasining "metama'lumoti". AI shu asosda qaysi
 # sonli ko'rsatkich va qaysi ko'rinish (chart turi) mumkinligini biladi —
 # bu uni xato/xavfli qiymat qaytarishdan saqlaydi.
@@ -180,7 +239,7 @@ _CARD_FIELDS = {
         'label': 'Savdo voronkasi',
         'numeric': ['count', 'pct'],
         'category': 'name',
-        'views': ['table', 'bar', 'pie'],
+        'views': _VIEWS_FULL,
         'tool': 'sales_funnel',
     },
     'managers': {
@@ -188,22 +247,50 @@ _CARD_FIELDS = {
         'numeric': ['revenue', 'won', 'calls', 'conversations', 'total_leads',
                     'conversion_rate', 'convo_rate', 'sale_rate', 'lead_to_sale'],
         'category': 'manager_name',
-        'views': ['table', 'bar', 'pie'],
+        'views': _VIEWS_FULL,
         'tool': 'manager_performance',
     },
     'loss': {
         'label': 'Sotib olmadi (sabablar)',
         'numeric': ['count'],
         'category': 'reason',
-        'views': ['table', 'bar', 'pie'],
+        'views': _VIEWS_FULL,
         'tool': 'loss_reasons',
     },
     'finance': {
         'label': "Moliy ko'rsatkichlar",
         'numeric': ['total_revenue', 'avg_deal', 'lead_value', 'sale_value'],
         'category': None,
-        'views': ['kpi', 'bar', 'table'],
+        'views': _VIEWS_FULL + ['kpi'],
         'tool': 'dashboard_summary',
+    },
+    'conversions': {
+        'label': 'Asosiy konversiyalar',
+        'numeric': ['pct', 'num', 'den'],
+        'category': 'label',
+        'views': _VIEWS_FULL,
+        'tool': 'conversions_data',
+    },
+    'daily': {
+        'label': 'Kunlik dinamika',
+        'numeric': ['leads', 'sales', 'conversion'],
+        'category': 'date',
+        'views': _VIEWS_FULL,
+        'tool': 'daily_dynamics',
+    },
+    'followup': {
+        'label': 'Qoldirilganlar (Follow-up)',
+        'numeric': ['lost', 'won', 'conversion_rate'],
+        'category': 'manager_name',
+        'views': _VIEWS_FULL,
+        'tool': 'followup_data',
+    },
+    'best_days': {
+        'label': 'Eng yaxshi kunlar',
+        'numeric': ['leads', 'won', 'conversion'],
+        'category': 'day',
+        'views': _VIEWS_FULL,
+        'tool': 'best_days_data',
     },
 }
 
@@ -225,6 +312,15 @@ def _card_data(card, source=None, period=None):
         return svc.get_loss_reasons(source=source, period=period)
     if card == 'finance':
         return svc.get_finance(source=source, period=period)
+    if card == 'conversions':
+        return svc.get_conversions(source, period)
+    if card == 'daily':
+        return svc.get_daily_dynamics(source=source)
+    if card == 'followup':
+        managers = svc.get_by_manager(source=source, period=period)
+        return [m for m in managers if m.get('lost')][:10] or managers[:10]
+    if card == 'best_days':
+        return svc.get_best_days(source=source, period=period)
     raise ValueError(f'Noma\'lum karta: {card}')
 
 
@@ -301,12 +397,26 @@ def _view_spec_schema(meta):
         'properties': {
             'viewType': {
                 'type': 'string', 'enum': meta['views'],
-                'description': 'Karta qanday ko\'rinishda chizilsin.',
+                'description': ('Karta qanday ko\'rinishda chizilsin. '
+                                'bar/line/area/stacked — multi-metric, '
+                                'pie/doughnut/horizontalBar — bitta metrik, '
+                                'table — jadval, kpi — katta sonli kartalar.'),
             },
             'metric': {
                 'type': 'string',
-                'description': ('Grafik/saralash uchun asosiy sonli '
-                                'ko\'rsatkich. Faqat shulardan biri: '
+                'description': ('Asosiy sonli ko\'rsatkich (pie/doughnut va '
+                                'saralash uchun ishlatiladi). Faqat shulardan '
+                                'biri: ' + ', '.join(meta['numeric'])),
+            },
+            'metrics': {
+                'type': 'array',
+                'items': {'type': 'string', 'enum': meta['numeric']},
+                'description': ('Bitta grafikda birga chiziladigan barcha '
+                                'ko\'rsatkichlar (bar/line/area/stacked '
+                                'uchun). Foydalanuvchi bir nechta '
+                                'ko\'rsatkichni so\'rasa shu yerga yozing, '
+                                'aks holda faqat "metric" ni takrorlang. '
+                                'Faqat shulardan tanlang: '
                                 + ', '.join(meta['numeric'])),
             },
             'sortBy': {
@@ -331,8 +441,8 @@ def _view_spec_schema(meta):
                 'description': 'O\'zbekcha bitta jumla — nima o\'zgartirildi.',
             },
         },
-        'required': ['viewType', 'metric', 'sortBy', 'sortDir', 'limit',
-                     'title', 'note'],
+        'required': ['viewType', 'metric', 'metrics', 'sortBy', 'sortDir',
+                     'limit', 'title', 'note'],
     }
 
 
@@ -373,15 +483,27 @@ def build_card_view_spec(card, instruction, source=None, period=None) -> dict:
         f'Mavjud sonli maydonlar: {", ".join(meta["numeric"])}.\n'
         f'Ma\'lumot namunasi (JSON): {sample}\n\n'
         f'Foydalanuvchining istagi: "{instruction}"\n\n'
-        'Shu istakka eng mos keladigan view-spec ni qaytar. Agar istak '
+        'Shu istakka eng mos keladigan view-spec ni qaytar. Agar '
+        'foydalanuvchi bir nechta ko\'rsatkichni (masalan "lid, sotuv, '
+        'qo\'ng\'iroq ko\'rinsin") so\'rasa, ularning hammasini "metrics" '
+        'massiviga yoz va viewType ni bar/line/area/stacked dan tanla — '
+        'pie/doughnut faqat bitta ko\'rsatkich uchun mos. Agar istak '
         'noaniq bo\'lsa, ma\'lumotga eng mantiqiy ko\'rinishni tanla. '
         '"metric" va "sortBy" albatta ko\'rsatilgan sonli maydonlardan '
-        'bo\'lishi shart.'
+        'bo\'lishi shart; "metrics" bo\'sh bo\'lmasin (kamida [metric]).'
     )
     spec = structured.invoke(message)
     # with_structured_output natijasi dict yoki obyekt bo'lishi mumkin.
     if not isinstance(spec, dict):
         spec = dict(spec)
+    # Xavfsiz fallback: metrics bo'sh bo'lsa, kamida asosiy metric ni qo'yamiz.
+    metrics = spec.get('metrics') or []
+    if not isinstance(metrics, list):
+        metrics = []
+    metrics = [m for m in metrics if m in meta['numeric']]
+    if not metrics and spec.get('metric') in meta['numeric']:
+        metrics = [spec['metric']]
+    spec['metrics'] = metrics
     spec['card'] = card
     logger.info('View-spec yaratildi: card=%s, viewType=%s',
                 card, spec.get('viewType'))

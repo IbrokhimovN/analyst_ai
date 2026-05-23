@@ -105,10 +105,14 @@
         </div>
 
         <!-- Asosiy konversiyalar -->
-        <div class="dash-card">
+        <div class="dash-card" data-card="conversions">
             <div class="dash-card-head">
                 <span class="dch-icon">📈</span>
                 <h2 class="dch-title">Asosiy konversiyalar</h2>
+                <div class="dch-actions">
+                    <button type="button" class="dcard-ai-btn" data-card="conversions"
+                            title="AI tahlil va ko'rinish">🤖 AI</button>
+                </div>
             </div>
             <div class="dash-rings">
                 {% for c in conversions %}
@@ -219,10 +223,14 @@
     <!-- ==================== DAILY DYNAMICS + LOSS REASONS ==================== -->
     <div class="dash-row dash-row-2-1">
         <!-- Kunlik dinamika -->
-        <div class="dash-card">
+        <div class="dash-card" data-card="daily">
             <div class="dash-card-head">
                 <span class="dch-icon">📊</span>
                 <h2 class="dch-title">Kunlik dinamika</h2>
+                <div class="dch-actions">
+                    <button type="button" class="dcard-ai-btn" data-card="daily"
+                            title="AI tahlil va ko'rinish">🤖 AI</button>
+                </div>
             </div>
             <div class="dash-chart-area">
                 <canvas id="dailyDynamicsChart"></canvas>
@@ -260,10 +268,14 @@
     <!-- ==================== FOLLOW-UP + INSIGHT + BEST DAYS ==================== -->
     <div class="dash-row dash-row-3">
         <!-- Qoldirilganlar -->
-        <div class="dash-card">
+        <div class="dash-card" data-card="followup">
             <div class="dash-card-head">
                 <span class="dch-icon">📋</span>
                 <h2 class="dch-title">Qoldirilganlar (Follow-up)</h2>
+                <div class="dch-actions">
+                    <button type="button" class="dcard-ai-btn" data-card="followup"
+                            title="AI tahlil va ko'rinish">🤖 AI</button>
+                </div>
             </div>
             <div class="dash-table-wrap">
                 <table class="dash-table">
@@ -308,10 +320,14 @@
         </div>
 
         <!-- Eng yaxshi kunlar -->
-        <div class="dash-card">
+        <div class="dash-card" data-card="best_days">
             <div class="dash-card-head">
                 <span class="dch-icon">📅</span>
                 <h2 class="dch-title">Eng yaxshi kunlar</h2>
+                <div class="dch-actions">
+                    <button type="button" class="dcard-ai-btn" data-card="best_days"
+                            title="AI tahlil va ko'rinish">🤖 AI</button>
+                </div>
             </div>
             <div class="dash-table-wrap">
                 <table class="dash-table">
@@ -360,3 +376,6 @@
 {{ top_managers|json_script:"managers-data" }}
 {{ finance|json_script:"finance-data" }}
 {{ loss_reasons|json_script:"loss-data" }}
+{{ conversions|json_script:"conversions-data" }}
+{{ followup|json_script:"followup-data" }}
+{{ best_days|json_script:"best-days-data" }}
