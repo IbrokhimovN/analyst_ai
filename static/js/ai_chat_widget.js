@@ -149,6 +149,42 @@
         '  align-items: center; justify-content: center; flex-shrink: 0; transition: opacity .15s ease; }',
         '.send:disabled { opacity: .4; cursor: not-allowed; }',
         '.send svg { width: 16px; height: 16px; }',
+        '.mic { background: #334155; border: none; color: #E2E8F0; ',
+        '  width: 36px; height: 36px; border-radius: 10px; cursor: pointer; display: flex; ',
+        '  align-items: center; justify-content: center; flex-shrink: 0; transition: background .15s ease; }',
+        '.mic:hover { background: #475569; }',
+        '.mic.recording { background: linear-gradient(135deg, #EF4444, #DC2626); color: #fff; ',
+        '  animation: micPulse 1.2s infinite; }',
+        '@keyframes micPulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(239,68,68,.6); } ',
+        '  50% { box-shadow: 0 0 0 8px rgba(239,68,68,0); } }',
+        '.mic svg { width: 18px; height: 18px; }',
+        '.rec-bar { display: flex; align-items: center; gap: 10px; padding: 6px 8px; ',
+        '  background: rgba(239,68,68,.12); border: 1px solid rgba(239,68,68,.35); ',
+        '  border-radius: 12px; color: #fecaca; font-size: 13px; }',
+        '.rec-dot { width: 10px; height: 10px; background: #EF4444; border-radius: 50%; ',
+        '  animation: recBlink .9s infinite; flex-shrink: 0; }',
+        '@keyframes recBlink { 0%, 100% { opacity: 1; } 50% { opacity: .25; } }',
+        '.rec-time { font-variant-numeric: tabular-nums; font-weight: 600; min-width: 44px; }',
+        '.rec-text { flex: 1; min-width: 0; font-size: 12px; opacity: .8; overflow: hidden; ',
+        '  text-overflow: ellipsis; white-space: nowrap; }',
+        '.rec-btn { background: transparent; border: none; cursor: pointer; width: 32px; height: 32px; ',
+        '  border-radius: 8px; display: flex; align-items: center; justify-content: center; ',
+        '  transition: background .12s ease; flex-shrink: 0; }',
+        '.rec-btn svg { width: 18px; height: 18px; }',
+        '.rec-cancel { color: #fca5a5; } .rec-cancel:hover { background: rgba(239,68,68,.18); }',
+        '.rec-send { background: linear-gradient(135deg, #22C55E, #16A34A); color: #fff; }',
+        '.rec-send:hover { filter: brightness(1.08); }',
+        '.voice-bubble { display: flex; align-items: center; gap: 10px; padding: 4px 0; min-width: 180px; }',
+        '.voice-play { width: 32px; height: 32px; border-radius: 50%; border: none; cursor: pointer; ',
+        '  background: rgba(255,255,255,.22); color: #fff; display: flex; align-items: center; ',
+        '  justify-content: center; flex-shrink: 0; transition: background .12s ease; }',
+        '.voice-play:hover { background: rgba(255,255,255,.32); }',
+        '.voice-play svg { width: 14px; height: 14px; }',
+        '.voice-wave { display: flex; align-items: center; gap: 2px; flex: 1; height: 22px; min-width: 80px; }',
+        '.voice-wave span { display: block; width: 2px; background: rgba(255,255,255,.55); border-radius: 1px; }',
+        '.voice-wave span.on { background: #fff; }',
+        '.voice-time { font-size: 11.5px; opacity: .85; font-variant-numeric: tabular-nums; flex-shrink: 0; }',
+        '.voice-tx { font-size: 11.5px; opacity: .85; margin-top: 4px; line-height: 1.4; font-style: italic; }',
         '.hint { font-size: 10.5px; opacity: .5; margin-top: 6px; text-align: center; }',
         '@media (max-width: 480px) {',
         '  .panel { right: 12px; left: 12px; bottom: 84px; width: auto; height: calc(100vh - 100px); }',
@@ -275,8 +311,16 @@
             '</div>' +
             '<div class="body" data-role="body"></div>' +
             '<div class="foot">' +
-            '  <div class="input-wrap">' +
-            '    <textarea class="input" data-role="input" placeholder="Savol yozing..." rows="1"></textarea>' +
+            '  <div class="input-wrap" data-role="input-wrap">' +
+            '    <textarea class="input" data-role="input" placeholder="Savol yozing yoki 🎤 bosing..." rows="1"></textarea>' +
+            '    <button class="mic" data-role="mic" title="Ovozli xabar">' +
+            '      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"' +
+            '           stroke-linecap="round" stroke-linejoin="round">' +
+            '        <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>' +
+            '        <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>' +
+            '        <line x1="12" y1="19" x2="12" y2="23"/>' +
+            '        <line x1="8" y1="23" x2="16" y2="23"/></svg>' +
+            '    </button>' +
             '    <button class="send" data-role="send" title="Yuborish">' +
             '      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"' +
             '           stroke-linecap="round" stroke-linejoin="round">' +
@@ -284,17 +328,25 @@
             '        <polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>' +
             '    </button>' +
             '  </div>' +
-            '  <div class="hint">Enter — yuborish · Shift+Enter — yangi qator</div>' +
+            '  <div class="hint">Enter — yuborish · Shift+Enter — yangi qator · 🎤 — ovozli</div>' +
             '</div>';
         root.appendChild(panel);
 
         var body = panel.querySelector('[data-role="body"]');
         var input = panel.querySelector('[data-role="input"]');
         var send = panel.querySelector('[data-role="send"]');
+        var mic = panel.querySelector('[data-role="mic"]');
+        var inputWrap = panel.querySelector('[data-role="input-wrap"]');
         var btnClose = panel.querySelector('[data-action="close"]');
         var btnClear = panel.querySelector('[data-action="clear"]');
 
         var state = { busy: false, history: loadHistory() };
+        var voice = {
+            recorder: null, stream: null, recognition: null, chunks: [],
+            transcript: '', interim: '', start: 0, timer: 0,
+            recordingUI: null, recordingTimeEl: null, recordingTextEl: null,
+            originalUIChildren: null,
+        };
 
         function open() {
             panel.classList.add('open');
@@ -449,6 +501,417 @@
             renderWelcome();
         }
 
+        // ----- Voice recording -----
+        function fmtDuration(ms) {
+            var s = Math.max(0, Math.round(ms / 1000));
+            var m = Math.floor(s / 60);
+            var r = s % 60;
+            return m + ':' + (r < 10 ? '0' : '') + r;
+        }
+
+        function makeWaveBars(blob, durationMs, onDone) {
+            // Audio'ni dekod qilib, 24 ta amplituda barini hisoblaymiz.
+            var Ctx = window.AudioContext || window.webkitAudioContext;
+            if (!Ctx || !blob) { onDone(null); return; }
+            var reader = new FileReader();
+            reader.onload = function () {
+                var ctx = new Ctx();
+                ctx.decodeAudioData(reader.result, function (buf) {
+                    var ch = buf.getChannelData(0);
+                    var bars = 24, step = Math.max(1, Math.floor(ch.length / bars));
+                    var arr = [];
+                    for (var i = 0; i < bars; i++) {
+                        var sum = 0, end = Math.min(ch.length, (i + 1) * step);
+                        for (var j = i * step; j < end; j++) { sum += Math.abs(ch[j]); }
+                        arr.push(sum / step);
+                    }
+                    var max = Math.max.apply(null, arr) || 1;
+                    onDone(arr.map(function (v) { return v / max; }));
+                    try { ctx.close(); } catch (e) { /* ignore */ }
+                }, function () { onDone(null); });
+            };
+            reader.readAsArrayBuffer(blob);
+        }
+
+        function appendVoiceMessage(blob, transcript, durationMs) {
+            var wrap = document.createElement('div');
+            wrap.className = 'msg user';
+
+            var avatar = document.createElement('div');
+            avatar.className = 'msg-avatar';
+            avatar.textContent = 'Siz';
+            wrap.appendChild(avatar);
+
+            var bubble = document.createElement('div');
+            bubble.className = 'bubble';
+
+            var vb = document.createElement('div');
+            vb.className = 'voice-bubble';
+
+            var url = blob ? URL.createObjectURL(blob) : null;
+            var audio = url ? new Audio(url) : null;
+
+            var playBtn = document.createElement('button');
+            playBtn.type = 'button';
+            playBtn.className = 'voice-play';
+            playBtn.title = 'Tinglash';
+            var playSVG = '<svg viewBox="0 0 24 24" fill="currentColor"><polygon points="6 4 20 12 6 20"/></svg>';
+            var pauseSVG = '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14"/><rect x="14" y="5" width="4" height="14"/></svg>';
+            playBtn.innerHTML = playSVG;
+
+            var wave = document.createElement('div');
+            wave.className = 'voice-wave';
+            var barEls = [];
+            for (var i = 0; i < 24; i++) {
+                var s = document.createElement('span');
+                s.style.height = '6px';
+                wave.appendChild(s);
+                barEls.push(s);
+            }
+
+            var timeEl = document.createElement('span');
+            timeEl.className = 'voice-time';
+            timeEl.textContent = fmtDuration(durationMs);
+
+            vb.appendChild(playBtn);
+            vb.appendChild(wave);
+            vb.appendChild(timeEl);
+            bubble.appendChild(vb);
+
+            if (transcript) {
+                var tx = document.createElement('div');
+                tx.className = 'voice-tx';
+                tx.textContent = '"' + transcript + '"';
+                bubble.appendChild(tx);
+            }
+
+            wrap.appendChild(bubble);
+            body.appendChild(wrap);
+            scrollDown();
+
+            // To'lqin tasvirini orqa fonda dekod qilib chizamiz.
+            makeWaveBars(blob, durationMs, function (arr) {
+                if (!arr) {
+                    barEls.forEach(function (b, idx) {
+                        var h = 4 + (Math.sin(idx * 0.7) + 1) * 6;
+                        b.style.height = h + 'px';
+                    });
+                    return;
+                }
+                arr.forEach(function (v, idx) {
+                    var h = Math.max(3, Math.round(v * 18));
+                    barEls[idx].style.height = h + 'px';
+                });
+            });
+
+            if (audio) {
+                audio.addEventListener('ended', function () {
+                    playBtn.innerHTML = playSVG;
+                    barEls.forEach(function (b) { b.classList.remove('on'); });
+                });
+                audio.addEventListener('timeupdate', function () {
+                    var p = audio.duration ? audio.currentTime / audio.duration : 0;
+                    var cutoff = Math.floor(p * barEls.length);
+                    barEls.forEach(function (b, idx) {
+                        if (idx < cutoff) { b.classList.add('on'); }
+                        else { b.classList.remove('on'); }
+                    });
+                });
+                playBtn.addEventListener('click', function () {
+                    if (audio.paused) {
+                        audio.play().catch(function () { /* autoplay block */ });
+                        playBtn.innerHTML = pauseSVG;
+                    } else {
+                        audio.pause();
+                        playBtn.innerHTML = playSVG;
+                    }
+                });
+            } else {
+                playBtn.disabled = true;
+                playBtn.style.opacity = '.5';
+            }
+        }
+
+        function buildRecordingUI() {
+            var bar = document.createElement('div');
+            bar.className = 'rec-bar';
+
+            var dot = document.createElement('span');
+            dot.className = 'rec-dot';
+
+            var timeEl = document.createElement('span');
+            timeEl.className = 'rec-time';
+            timeEl.textContent = '0:00';
+
+            var textEl = document.createElement('span');
+            textEl.className = 'rec-text';
+            textEl.textContent = 'Tinglayapman...';
+
+            var cancelBtn = document.createElement('button');
+            cancelBtn.type = 'button';
+            cancelBtn.className = 'rec-btn rec-cancel';
+            cancelBtn.title = 'Bekor qilish';
+            cancelBtn.innerHTML =
+                '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"' +
+                ' stroke-linecap="round" stroke-linejoin="round">' +
+                '<polyline points="3 6 5 6 21 6"/>' +
+                '<path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6"/></svg>';
+
+            var sendBtn = document.createElement('button');
+            sendBtn.type = 'button';
+            sendBtn.className = 'rec-btn rec-send';
+            sendBtn.title = 'Yuborish';
+            sendBtn.innerHTML =
+                '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"' +
+                ' stroke-linecap="round" stroke-linejoin="round">' +
+                '<polyline points="20 6 9 17 4 12"/></svg>';
+
+            bar.appendChild(dot);
+            bar.appendChild(timeEl);
+            bar.appendChild(textEl);
+            bar.appendChild(cancelBtn);
+            bar.appendChild(sendBtn);
+
+            cancelBtn.addEventListener('click', cancelRecording);
+            sendBtn.addEventListener('click', stopRecording);
+
+            return { bar: bar, timeEl: timeEl, textEl: textEl };
+        }
+
+        function showRecordingUI() {
+            // Hozirgi input-wrap mazmunini saqlab, rec-bar ga almashtiramiz.
+            voice.originalUIChildren = Array.prototype.slice.call(inputWrap.childNodes);
+            inputWrap.innerHTML = '';
+            var ui = buildRecordingUI();
+            voice.recordingUI = ui.bar;
+            voice.recordingTimeEl = ui.timeEl;
+            voice.recordingTextEl = ui.textEl;
+            inputWrap.style.padding = '4px';
+            inputWrap.appendChild(ui.bar);
+        }
+
+        function restoreInputUI() {
+            inputWrap.innerHTML = '';
+            inputWrap.style.padding = '';
+            if (voice.originalUIChildren) {
+                voice.originalUIChildren.forEach(function (n) { inputWrap.appendChild(n); });
+            }
+            voice.originalUIChildren = null;
+            voice.recordingUI = null;
+            voice.recordingTimeEl = null;
+            voice.recordingTextEl = null;
+            // Statik element havolalarini qayta o'qiymiz.
+            input = panel.querySelector('[data-role="input"]');
+            send = panel.querySelector('[data-role="send"]');
+            mic = panel.querySelector('[data-role="mic"]');
+            wireInputEvents();
+        }
+
+        function tickTimer() {
+            if (!voice.recordingTimeEl) { return; }
+            voice.recordingTimeEl.textContent = fmtDuration(Date.now() - voice.start);
+        }
+
+        function startRecording() {
+            if (voice.recorder || state.busy) { return; }
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                // Eng tez-tez uchraydigan sabab — secure context emas (HTTP).
+                var isSecure = window.isSecureContext === true;
+                var msg;
+                if (!isSecure) {
+                    msg = '⚠️ **Mikrofon faqat HTTPS yoki localhost da ishlaydi.**\n\n' +
+                        'Hozir sayt `' + location.protocol + '//' + location.host + '` orqali ochilgan.\n\n' +
+                        '**Yechimlar:**\n' +
+                        '1. **Chrome flag** (test uchun): `chrome://flags/#unsafely-treat-insecure-origin-as-secure` ochib, ' +
+                        'shu URL ni qo\'shing: `' + location.protocol + '//' + location.host + '` → "Enabled" → brauzerni qayta ishga tushiring.\n' +
+                        '2. **SSH tunnel**: terminalda `ssh -L 7777:127.0.0.1:7777 user@server` → keyin `http://localhost:7777/` ochib ishlatasiz.\n' +
+                        '3. **Nginx + HTTPS** (asosiy yechim): saytni `https://...` ostiga olib chiqish.';
+                } else {
+                    msg = '⚠️ Brauzer mikrofonni qo\'llab-quvvatlamaydi. Chrome/Edge\'ning so\'nggi versiyasini sinab ko\'ring.';
+                }
+                appendMessage('ai', msg);
+                return;
+            }
+            navigator.mediaDevices.getUserMedia({ audio: true }).then(function (stream) {
+                voice.stream = stream;
+                voice.chunks = [];
+                voice.transcript = '';
+                voice.interim = '';
+                voice.start = Date.now();
+
+                // MediaRecorder — audio file
+                var mime = 'audio/webm';
+                try {
+                    voice.recorder = new MediaRecorder(stream, { mimeType: mime });
+                } catch (e) {
+                    voice.recorder = new MediaRecorder(stream);
+                }
+                voice.recorder.addEventListener('dataavailable', function (e) {
+                    if (e.data && e.data.size > 0) { voice.chunks.push(e.data); }
+                });
+                voice.recorder.start();
+
+                // SpeechRecognition — jonli transkripsiya
+                var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+                if (SR) {
+                    var rec = new SR();
+                    rec.lang = 'uz-UZ';
+                    rec.continuous = true;
+                    rec.interimResults = true;
+                    rec.addEventListener('result', function (e) {
+                        var fin = '', interim = '';
+                        for (var i = e.resultIndex; i < e.results.length; i++) {
+                            var t = e.results[i][0].transcript;
+                            if (e.results[i].isFinal) { fin += t; } else { interim += t; }
+                        }
+                        if (fin) { voice.transcript += fin; }
+                        voice.interim = interim;
+                        if (voice.recordingTextEl) {
+                            var shown = (voice.transcript + ' ' + interim).trim();
+                            voice.recordingTextEl.textContent = shown || 'Tinglayapman...';
+                        }
+                    });
+                    rec.addEventListener('error', function (e) {
+                        // 'no-speech' va boshqalarni indamasdan o'tkazamiz.
+                        if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
+                            cancelRecording();
+                        }
+                    });
+                    rec.addEventListener('end', function () {
+                        // Avto-tugashda yana yoqib qo'yamiz (continuous bo'lsa ham toza chiqishi mumkin)
+                        if (voice.recorder && voice.recorder.state === 'recording') {
+                            try { rec.start(); } catch (e) { /* ignore */ }
+                        }
+                    });
+                    try { rec.start(); } catch (e) { /* ignore */ }
+                    voice.recognition = rec;
+                }
+
+                showRecordingUI();
+                mic.classList.add('recording');
+                voice.timer = setInterval(tickTimer, 250);
+            }).catch(function (err) {
+                appendMessage('ai', '⚠️ Mikrofonga ruxsat berilmadi: ' + (err && err.message ? err.message : err));
+            });
+        }
+
+        function teardownRecording() {
+            if (voice.timer) { clearInterval(voice.timer); voice.timer = 0; }
+            mic.classList.remove('recording');
+            if (voice.recognition) {
+                try { voice.recognition.onend = null; voice.recognition.stop(); } catch (e) { /* */ }
+                voice.recognition = null;
+            }
+            if (voice.stream) {
+                voice.stream.getTracks().forEach(function (t) { try { t.stop(); } catch (e) {} });
+                voice.stream = null;
+            }
+            voice.recorder = null;
+            restoreInputUI();
+        }
+
+        function cancelRecording() {
+            if (!voice.recorder) { teardownRecording(); return; }
+            try { voice.recorder.stop(); } catch (e) { /* */ }
+            voice.chunks = [];
+            voice.transcript = '';
+            voice.interim = '';
+            teardownRecording();
+        }
+
+        function stopRecording() {
+            if (!voice.recorder) { return; }
+            var duration = Date.now() - voice.start;
+            var rec = voice.recorder;
+            var chunks = voice.chunks;
+            var transcript = (voice.transcript + ' ' + voice.interim).trim();
+
+            rec.addEventListener('stop', function () {
+                var blob = chunks.length ? new Blob(chunks, { type: rec.mimeType || 'audio/webm' }) : null;
+
+                // Welcome'ni olib tashlaymiz
+                var welcome = body.querySelector('.welcome');
+                if (welcome) { welcome.remove(); }
+
+                appendVoiceMessage(blob, transcript, duration);
+                // Tarixda matn ko'rinishida saqlaymiz (audio blob persist qilinmaydi).
+                if (transcript) {
+                    pushHistory('user', '🎤 ' + transcript);
+                    // AI ga yuboramiz (lekin user bubble qaytadan qo'shilmasin uchun
+                    // sendQuery bypass qilamiz va to'g'ridan-to'g'ri fetch qilamiz).
+                    askAI(transcript);
+                } else {
+                    appendMessage('ai', '⚠️ Ovozdan matn aniqlanmadi. Brauzer Uzbek tilini qo\'llab-quvvatlamayotgan bo\'lishi mumkin.');
+                }
+            });
+            try { rec.stop(); } catch (e) { /* */ }
+            teardownRecording();
+        }
+
+        function askAI(text) {
+            // Voice rejimi uchun — user bubble qo'shmasdan API'ga yuboradi
+            // (chunki appendVoiceMessage allaqachon bubble qo'ydi).
+            if (!text || state.busy) { return; }
+            state.busy = true;
+            send.disabled = true;
+
+            var thinking = appendMessage('ai',
+                '<span class="typing"><span></span><span></span><span></span></span>',
+                { raw: true });
+
+            fetch(ENDPOINT, {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken(),
+                },
+                body: JSON.stringify({
+                    message: text,
+                    manager_id: 0,
+                    source: window.__crmSource || '',
+                }),
+            })
+                .then(function (r) {
+                    return r.json().then(function (j) { return { ok: r.ok, data: j }; });
+                })
+                .then(function (res) {
+                    if (!res.ok) { throw new Error((res.data && res.data.error) || 'Xatolik'); }
+                    var data = res.data || {};
+                    var html = renderMarkdown(data.answer || '');
+                    if (data.sources && data.sources.length) {
+                        html += '<div class="sources">📎 Manba: ' +
+                            data.sources.map(function (s) {
+                                var d = document.createElement('span');
+                                d.textContent = s;
+                                return d.innerHTML;
+                            }).join(', ') + '</div>';
+                    }
+                    thinking.innerHTML = html;
+
+                    var charts = Array.isArray(data.charts) ? data.charts : [];
+                    charts.forEach(function (spec) { appendChart(thinking, spec); });
+
+                    var cmds = Array.isArray(data.commands) ? data.commands : [];
+                    cmds.forEach(function (cmd) {
+                        var ok = dispatchCommand(cmd);
+                        appendCommandPill(thinking, cmd, ok);
+                    });
+
+                    pushHistory('ai', data.answer || '');
+                    scrollDown();
+                })
+                .catch(function (e) {
+                    thinking.innerHTML = '❌ Xatolik: ' +
+                        (function () { var d = document.createElement('span'); d.textContent = e.message; return d.innerHTML; })();
+                })
+                .finally(function () {
+                    state.busy = false;
+                    send.disabled = false;
+                    scrollDown();
+                });
+        }
+
         // Auto-resize textarea
         function autosize() {
             input.style.height = 'auto';
@@ -456,17 +919,27 @@
         }
 
         // Events
+        function wireInputEvents() {
+            // input/send/mic restoreInputUI'dan keyin yangi DOM elementlari bo'lishi mumkin —
+            // shuning uchun har safar restore'dan keyin ulanadi.
+            send.addEventListener('click', function () { sendQuery(input.value); });
+            input.addEventListener('input', autosize);
+            input.addEventListener('keydown', function (e) {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    sendQuery(input.value);
+                }
+            });
+            mic.addEventListener('click', function () {
+                if (voice.recorder) { stopRecording(); }
+                else { startRecording(); }
+            });
+        }
+
         fab.addEventListener('click', toggle);
         btnClose.addEventListener('click', close);
         btnClear.addEventListener('click', clearChat);
-        send.addEventListener('click', function () { sendQuery(input.value); });
-        input.addEventListener('input', autosize);
-        input.addEventListener('keydown', function (e) {
-            if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                sendQuery(input.value);
-            }
-        });
+        wireInputEvents();
 
         // Close on Escape when panel focused
         root.addEventListener('keydown', function (e) {
