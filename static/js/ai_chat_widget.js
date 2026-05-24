@@ -158,15 +158,22 @@
         '@keyframes micPulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(239,68,68,.6); } ',
         '  50% { box-shadow: 0 0 0 8px rgba(239,68,68,0); } }',
         '.mic svg { width: 18px; height: 18px; }',
-        '.rec-bar { display: flex; align-items: center; gap: 10px; padding: 6px 8px; ',
+        '.rec-bar { display: none; align-items: center; gap: 8px; padding: 8px; ',
         '  background: rgba(239,68,68,.12); border: 1px solid rgba(239,68,68,.35); ',
-        '  border-radius: 12px; color: #fecaca; font-size: 13px; }',
+        '  border-radius: 12px; color: #fecaca; font-size: 13px; max-width: 100%; ',
+        '  overflow: hidden; box-sizing: border-box; }',
+        '.rec-bar.on { display: flex; }',
+        '.rec-bar.on + .input-wrap { display: none; }',
         '.rec-dot { width: 10px; height: 10px; background: #EF4444; border-radius: 50%; ',
         '  animation: recBlink .9s infinite; flex-shrink: 0; }',
         '@keyframes recBlink { 0%, 100% { opacity: 1; } 50% { opacity: .25; } }',
-        '.rec-time { font-variant-numeric: tabular-nums; font-weight: 600; min-width: 44px; }',
-        '.rec-text { flex: 1; min-width: 0; font-size: 12px; opacity: .8; overflow: hidden; ',
-        '  text-overflow: ellipsis; white-space: nowrap; }',
+        '.rec-time { font-variant-numeric: tabular-nums; font-weight: 600; min-width: 38px; ',
+        '  flex-shrink: 0; font-size: 12px; }',
+        '.rec-text { flex: 1 1 0; min-width: 0; font-size: 11.5px; opacity: .85; ',
+        '  max-height: 36px; overflow-y: auto; line-height: 1.35; word-break: break-word; ',
+        '  overflow-wrap: anywhere; white-space: normal; }',
+        '.rec-text::-webkit-scrollbar { width: 4px; } ',
+        '.rec-text::-webkit-scrollbar-thumb { background: rgba(255,255,255,.2); border-radius: 2px; }',
         '.rec-btn { background: transparent; border: none; cursor: pointer; width: 32px; height: 32px; ',
         '  border-radius: 8px; display: flex; align-items: center; justify-content: center; ',
         '  transition: background .12s ease; flex-shrink: 0; }',
@@ -311,6 +318,22 @@
             '</div>' +
             '<div class="body" data-role="body"></div>' +
             '<div class="foot">' +
+            '  <div class="rec-bar" data-role="rec-bar">' +
+            '    <span class="rec-dot"></span>' +
+            '    <span class="rec-time" data-role="rec-time">0:00</span>' +
+            '    <span class="rec-text" data-role="rec-text">Tinglayapman...</span>' +
+            '    <button class="rec-btn rec-cancel" data-role="rec-cancel" title="Bekor qilish">' +
+            '      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"' +
+            '           stroke-linecap="round" stroke-linejoin="round">' +
+            '        <polyline points="3 6 5 6 21 6"/>' +
+            '        <path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6"/></svg>' +
+            '    </button>' +
+            '    <button class="rec-btn rec-send" data-role="rec-send" title="Yuborish">' +
+            '      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"' +
+            '           stroke-linecap="round" stroke-linejoin="round">' +
+            '        <polyline points="20 6 9 17 4 12"/></svg>' +
+            '    </button>' +
+            '  </div>' +
             '  <div class="input-wrap" data-role="input-wrap">' +
             '    <textarea class="input" data-role="input" placeholder="Savol yozing yoki 🎤 bosing..." rows="1"></textarea>' +
             '    <button class="mic" data-role="mic" title="Ovozli xabar">' +
@@ -337,15 +360,21 @@
         var send = panel.querySelector('[data-role="send"]');
         var mic = panel.querySelector('[data-role="mic"]');
         var inputWrap = panel.querySelector('[data-role="input-wrap"]');
+        var recBar = panel.querySelector('[data-role="rec-bar"]');
+        var recTimeEl = panel.querySelector('[data-role="rec-time"]');
+        var recTextEl = panel.querySelector('[data-role="rec-text"]');
+        var recCancelBtn = panel.querySelector('[data-role="rec-cancel"]');
+        var recSendBtn = panel.querySelector('[data-role="rec-send"]');
         var btnClose = panel.querySelector('[data-action="close"]');
         var btnClear = panel.querySelector('[data-action="clear"]');
+
+        var MAX_REC_MS = 60000; // 60 sekund — avto-tugatish
 
         var state = { busy: false, history: loadHistory() };
         var voice = {
             recorder: null, stream: null, recognition: null, chunks: [],
             transcript: '', interim: '', start: 0, timer: 0,
-            recordingUI: null, recordingTimeEl: null, recordingTextEl: null,
-            originalUIChildren: null,
+            stopping: false, maxTimer: 0,
         };
 
         function open() {
@@ -632,88 +661,26 @@
             }
         }
 
-        function buildRecordingUI() {
-            var bar = document.createElement('div');
-            bar.className = 'rec-bar';
-
-            var dot = document.createElement('span');
-            dot.className = 'rec-dot';
-
-            var timeEl = document.createElement('span');
-            timeEl.className = 'rec-time';
-            timeEl.textContent = '0:00';
-
-            var textEl = document.createElement('span');
-            textEl.className = 'rec-text';
-            textEl.textContent = 'Tinglayapman...';
-
-            var cancelBtn = document.createElement('button');
-            cancelBtn.type = 'button';
-            cancelBtn.className = 'rec-btn rec-cancel';
-            cancelBtn.title = 'Bekor qilish';
-            cancelBtn.innerHTML =
-                '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"' +
-                ' stroke-linecap="round" stroke-linejoin="round">' +
-                '<polyline points="3 6 5 6 21 6"/>' +
-                '<path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6"/></svg>';
-
-            var sendBtn = document.createElement('button');
-            sendBtn.type = 'button';
-            sendBtn.className = 'rec-btn rec-send';
-            sendBtn.title = 'Yuborish';
-            sendBtn.innerHTML =
-                '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"' +
-                ' stroke-linecap="round" stroke-linejoin="round">' +
-                '<polyline points="20 6 9 17 4 12"/></svg>';
-
-            bar.appendChild(dot);
-            bar.appendChild(timeEl);
-            bar.appendChild(textEl);
-            bar.appendChild(cancelBtn);
-            bar.appendChild(sendBtn);
-
-            cancelBtn.addEventListener('click', cancelRecording);
-            sendBtn.addEventListener('click', stopRecording);
-
-            return { bar: bar, timeEl: timeEl, textEl: textEl };
-        }
-
         function showRecordingUI() {
-            // Hozirgi input-wrap mazmunini saqlab, rec-bar ga almashtiramiz.
-            voice.originalUIChildren = Array.prototype.slice.call(inputWrap.childNodes);
-            inputWrap.innerHTML = '';
-            var ui = buildRecordingUI();
-            voice.recordingUI = ui.bar;
-            voice.recordingTimeEl = ui.timeEl;
-            voice.recordingTextEl = ui.textEl;
-            inputWrap.style.padding = '4px';
-            inputWrap.appendChild(ui.bar);
+            recTextEl.textContent = 'Tinglayapman...';
+            recTimeEl.textContent = '0:00';
+            recBar.classList.add('on');
+            mic.classList.add('recording');
         }
 
-        function restoreInputUI() {
-            inputWrap.innerHTML = '';
-            inputWrap.style.padding = '';
-            if (voice.originalUIChildren) {
-                voice.originalUIChildren.forEach(function (n) { inputWrap.appendChild(n); });
-            }
-            voice.originalUIChildren = null;
-            voice.recordingUI = null;
-            voice.recordingTimeEl = null;
-            voice.recordingTextEl = null;
-            // Statik element havolalarini qayta o'qiymiz.
-            input = panel.querySelector('[data-role="input"]');
-            send = panel.querySelector('[data-role="send"]');
-            mic = panel.querySelector('[data-role="mic"]');
-            wireInputEvents();
+        function hideRecordingUI() {
+            recBar.classList.remove('on');
+            mic.classList.remove('recording');
         }
 
         function tickTimer() {
-            if (!voice.recordingTimeEl) { return; }
-            voice.recordingTimeEl.textContent = fmtDuration(Date.now() - voice.start);
+            var elapsed = Date.now() - voice.start;
+            recTimeEl.textContent = fmtDuration(elapsed);
+            if (elapsed >= MAX_REC_MS) { stopRecording(); }
         }
 
         function startRecording() {
-            if (voice.recorder || state.busy) { return; }
+            if (voice.recorder || voice.stopping || state.busy) { return; }
             if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
                 // Eng tez-tez uchraydigan sabab — secure context emas (HTTP).
                 var isSecure = window.isSecureContext === true;
@@ -766,10 +733,10 @@
                         }
                         if (fin) { voice.transcript += fin; }
                         voice.interim = interim;
-                        if (voice.recordingTextEl) {
-                            var shown = (voice.transcript + ' ' + interim).trim();
-                            voice.recordingTextEl.textContent = shown || 'Tinglayapman...';
-                        }
+                        var shown = (voice.transcript + ' ' + interim).trim();
+                        recTextEl.textContent = shown || 'Tinglayapman...';
+                        // Pastga avto-scroll qilamiz
+                        recTextEl.scrollTop = recTextEl.scrollHeight;
                     });
                     rec.addEventListener('error', function (e) {
                         // 'no-speech' va boshqalarni indamasdan o'tkazamiz.
@@ -788,7 +755,6 @@
                 }
 
                 showRecordingUI();
-                mic.classList.add('recording');
                 voice.timer = setInterval(tickTimer, 250);
             }).catch(function (err) {
                 appendMessage('ai', '⚠️ Mikrofonga ruxsat berilmadi: ' + (err && err.message ? err.message : err));
@@ -797,7 +763,6 @@
 
         function teardownRecording() {
             if (voice.timer) { clearInterval(voice.timer); voice.timer = 0; }
-            mic.classList.remove('recording');
             if (voice.recognition) {
                 try { voice.recognition.onend = null; voice.recognition.stop(); } catch (e) { /* */ }
                 voice.recognition = null;
@@ -807,12 +772,20 @@
                 voice.stream = null;
             }
             voice.recorder = null;
-            restoreInputUI();
+            voice.stopping = false;
+            hideRecordingUI();
         }
 
         function cancelRecording() {
-            if (!voice.recorder) { teardownRecording(); return; }
-            try { voice.recorder.stop(); } catch (e) { /* */ }
+            if (voice.stopping) { return; }
+            voice.stopping = true;
+            // Recorder ni indikatorsiz to'xtatamiz — stop event'ini ignore qilamiz.
+            if (voice.recorder) {
+                try {
+                    voice.recorder.onstop = null;
+                    if (voice.recorder.state !== 'inactive') { voice.recorder.stop(); }
+                } catch (e) { /* */ }
+            }
             voice.chunks = [];
             voice.transcript = '';
             voice.interim = '';
@@ -820,32 +793,48 @@
         }
 
         function stopRecording() {
-            if (!voice.recorder) { return; }
+            if (voice.stopping) { return; }
+            if (!voice.recorder) { hideRecordingUI(); return; }
+            voice.stopping = true;
+
             var duration = Date.now() - voice.start;
             var rec = voice.recorder;
             var chunks = voice.chunks;
             var transcript = (voice.transcript + ' ' + voice.interim).trim();
 
-            rec.addEventListener('stop', function () {
-                var blob = chunks.length ? new Blob(chunks, { type: rec.mimeType || 'audio/webm' }) : null;
+            // Recognition'ni darhol to'xtatamiz, recorder.stop()'ni kutamiz
+            if (voice.recognition) {
+                try { voice.recognition.onend = null; voice.recognition.stop(); } catch (e) {}
+                voice.recognition = null;
+            }
+            if (voice.timer) { clearInterval(voice.timer); voice.timer = 0; }
 
-                // Welcome'ni olib tashlaymiz
+            var finalize = function () {
+                var blob = chunks.length ? new Blob(chunks, { type: (rec && rec.mimeType) || 'audio/webm' }) : null;
                 var welcome = body.querySelector('.welcome');
                 if (welcome) { welcome.remove(); }
-
                 appendVoiceMessage(blob, transcript, duration);
-                // Tarixda matn ko'rinishida saqlaymiz (audio blob persist qilinmaydi).
                 if (transcript) {
                     pushHistory('user', '🎤 ' + transcript);
-                    // AI ga yuboramiz (lekin user bubble qaytadan qo'shilmasin uchun
-                    // sendQuery bypass qilamiz va to'g'ridan-to'g'ri fetch qilamiz).
                     askAI(transcript);
                 } else {
-                    appendMessage('ai', '⚠️ Ovozdan matn aniqlanmadi. Brauzer Uzbek tilini qo\'llab-quvvatlamayotgan bo\'lishi mumkin.');
+                    appendMessage('ai', '⚠️ Ovozdan matn aniqlanmadi. Brauzer Uzbek tilini qo\'llab-quvvatlamayotgan bo\'lishi mumkin — ruscha yoki ingliz tilida sinab ko\'ring.');
                 }
-            });
-            try { rec.stop(); } catch (e) { /* */ }
-            teardownRecording();
+            };
+
+            if (rec && rec.state !== 'inactive') {
+                rec.onstop = function () {
+                    teardownRecording();
+                    finalize();
+                };
+                try { rec.stop(); } catch (e) {
+                    teardownRecording();
+                    finalize();
+                }
+            } else {
+                teardownRecording();
+                finalize();
+            }
         }
 
         function askAI(text) {
@@ -918,28 +907,24 @@
             input.style.height = Math.min(input.scrollHeight, 120) + 'px';
         }
 
-        // Events
-        function wireInputEvents() {
-            // input/send/mic restoreInputUI'dan keyin yangi DOM elementlari bo'lishi mumkin —
-            // shuning uchun har safar restore'dan keyin ulanadi.
-            send.addEventListener('click', function () { sendQuery(input.value); });
-            input.addEventListener('input', autosize);
-            input.addEventListener('keydown', function (e) {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    sendQuery(input.value);
-                }
-            });
-            mic.addEventListener('click', function () {
-                if (voice.recorder) { stopRecording(); }
-                else { startRecording(); }
-            });
-        }
-
+        // Events — bir marta init paytida ulanadi.
         fab.addEventListener('click', toggle);
         btnClose.addEventListener('click', close);
         btnClear.addEventListener('click', clearChat);
-        wireInputEvents();
+        send.addEventListener('click', function () { sendQuery(input.value); });
+        input.addEventListener('input', autosize);
+        input.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendQuery(input.value);
+            }
+        });
+        mic.addEventListener('click', function () {
+            if (voice.recorder) { stopRecording(); }
+            else { startRecording(); }
+        });
+        recCancelBtn.addEventListener('click', cancelRecording);
+        recSendBtn.addEventListener('click', stopRecording);
 
         // Close on Escape when panel focused
         root.addEventListener('keydown', function (e) {
