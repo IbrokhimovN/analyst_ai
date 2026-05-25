@@ -1,7 +1,3 @@
-"""
-ASGI config for AmoCRM AI Dashboard.
-Supports both HTTP and WebSocket protocols.
-"""
 import os
 
 from channels.auth import AuthMiddlewareStack

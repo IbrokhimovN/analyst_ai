@@ -1,9 +1,3 @@
-"""
-AmoCRM Adapter — AmoCRM v4 API orqali CRUD va ma'lumot olish.
-
-Bu adapter faqat CRM bilan aloqa qiladi.
-Token boshqaruvi apps.amocrm.services.AmoCRMService dan olinadi.
-"""
 import logging
 
 import requests
@@ -14,18 +8,11 @@ from ..base import BaseCRMAdapter
 
 logger = logging.getLogger(__name__)
 
-
 class AmoCRMAdapter(BaseCRMAdapter):
-    """AmoCRM v4 API adapter."""
 
     BASE_URL = f"https://{settings.AMOCRM_DOMAIN}"
 
-    # -------------------------------------------------------------------------
-    # Token boshqaruvi
-    # -------------------------------------------------------------------------
-
     def _get_token(self):
-        """Access tokenni cache yoki DB dan olish."""
         token = cache.get("amocrm_token")
         if token:
             return token
@@ -59,17 +46,12 @@ class AmoCRMAdapter(BaseCRMAdapter):
         }
 
     def _get(self, endpoint, params=None):
-        """GET request wrapper."""
         url = f"{self.BASE_URL}{endpoint}"
         resp = requests.get(url, headers=self._headers(), params=params, timeout=30)
         resp.raise_for_status()
         if resp.status_code == 204 or not resp.text.strip():
             return {}
         return resp.json()
-
-    # -------------------------------------------------------------------------
-    # Lead CRUD
-    # -------------------------------------------------------------------------
 
     def create_lead(self, data: dict) -> dict:
         r = requests.post(
@@ -95,10 +77,6 @@ class AmoCRMAdapter(BaseCRMAdapter):
         )
         return r.status_code == 204
 
-    # -------------------------------------------------------------------------
-    # Contact CRUD
-    # -------------------------------------------------------------------------
-
     def create_contact(self, data: dict) -> dict:
         r = requests.post(
             f"{self.BASE_URL}/api/v4/contacts",
@@ -122,10 +100,6 @@ class AmoCRMAdapter(BaseCRMAdapter):
             headers=self._headers(),
         )
         return r.status_code == 204
-
-    # -------------------------------------------------------------------------
-    # Data fetching (sync uchun)
-    # -------------------------------------------------------------------------
 
     def get_leads(self, page: int = 1, limit: int = 250) -> dict:
         data = self._get("/api/v4/leads", params={

@@ -1,17 +1,3 @@
-"""AI API endpointlari — LangChain RAG, Agent va Memory.
-
-Endpointlar:
-
-  * ``POST   /api/v1/ai/rag/upload/``      — PDF/Excel hujjat yuklash (RAG).
-  * ``GET    /api/v1/ai/rag/documents/``   — yuklangan hujjatlar ro'yxati.
-  * ``DELETE /api/v1/ai/rag/documents/<id>/`` — hujjatni o'chirish.
-  * ``POST   /api/v1/ai/chat/``            — RAG + Memory bilan savol-javob.
-  * ``GET    /api/v1/ai/chat/history/``    — menejer suhbat tarixi.
-  * ``DELETE /api/v1/ai/chat/history/``    — menejer suhbat tarixini tozalash.
-  * ``POST   /api/v1/ai/agent/analyze/``   — Agent orqali avtomatik tahlil.
-  * ``GET    /api/v1/ai/managers/``        — menejerlar ro'yxati (selector uchun).
-  * ``GET    /api/v1/ai/report/weekly/``   — haftalik AI hisobot (eski).
-"""
 import logging
 import os
 import re
@@ -31,40 +17,23 @@ from apps.amocrm.models import User as AmoCRMUser
 
 logger = logging.getLogger(__name__)
 
-# RAG uchun ruxsat etilgan fayl kengaytmalari.
 ALLOWED_EXTENSIONS = {'.pdf', '.xlsx', '.xls', '.csv'}
 
-
 def _clean_source(value):
-    """``source`` query/body qiymatini normallashtiradi ('all' → None)."""
     if value in ('amocrm', 'bitrix'):
         return value
     return None
 
-
-# Maxsus sana oralig'i: "range:YYYY-MM-DD:YYYY-MM-DD".
 _PERIOD_RANGE_RE = re.compile(r'^range:\d{4}-\d{2}-\d{2}:\d{4}-\d{2}-\d{2}$')
 
-
 def _clean_period(value):
-    """``period`` query/body qiymatini normallashtiradi (yaroqsiz → None).
-
-    Ruxsat etilgan: 'day' | 'week' | 'month' yoki maxsus sana oralig'i
-    "range:YYYY-MM-DD:YYYY-MM-DD".
-    """
     if value in ('day', 'week', 'month'):
         return value
     if value and _PERIOD_RANGE_RE.match(value):
         return value
     return None
 
-
-# =============================================================================
-# RAG — hujjat yuklash va boshqarish
-# =============================================================================
-
 class RAGUploadView(APIView):
-    """PDF yoki Excel hujjatni yuklab, FAISS vektor omboriga qo'shadi."""
     permission_classes = [AllowAny]
     parser_classes = [MultiPartParser, FormParser]
 
@@ -82,7 +51,6 @@ class RAGUploadView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        # Hujjatni saqlaymiz va darhol qayta ishlaymiz.
         doc = KnowledgeDocument.objects.create(
             title=request.data.get('title') or upload.name,
             file=upload,
@@ -94,7 +62,7 @@ class RAGUploadView(APIView):
             doc.chunk_count = chunk_count
             doc.status = 'ready'
             doc.save(update_fields=['chunk_count', 'status'])
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             logger.error('RAG hujjat qayta ishlashda xatolik: %s', exc)
             doc.status = 'error'
             doc.error = str(exc)
@@ -110,9 +78,7 @@ class RAGUploadView(APIView):
             'status': doc.status,
         }, status=status.HTTP_201_CREATED)
 
-
 class RAGDocumentsView(APIView):
-    """Yuklangan RAG hujjatlari ro'yxati."""
     permission_classes = [AllowAny]
 
     def get(self, request):
@@ -130,9 +96,7 @@ class RAGDocumentsView(APIView):
         ]
         return Response({'documents': docs, 'count': len(docs)})
 
-
 class RAGDocumentDetailView(APIView):
-    """Bitta RAG hujjatini o'chirish (indeks qayta quriladi)."""
     permission_classes = [AllowAny]
 
     def delete(self, request, pk):
@@ -142,24 +106,12 @@ class RAGDocumentDetailView(APIView):
             return Response({'error': 'Hujjat topilmadi.'},
                             status=status.HTTP_404_NOT_FOUND)
 
-        doc.file.delete(save=False)  # diskdagi faylni o'chirish
+        doc.file.delete(save=False)
         doc.delete()
-        # FAISS indeksini qolgan hujjatlardan qayta quramiz.
         rag_mod.rebuild_index()
         return Response({'status': 'deleted'})
 
-
-# =============================================================================
-# Chat — RAG + Memory
-# =============================================================================
-
 class AIChatView(APIView):
-    """RAG va Memory bilan savol-javob.
-
-    Hujjatlar yuklangan bo'lsa javob ularga asoslanadi, aks holda oddiy
-    Claude suhbati. Har ikkala holatda menejerning suhbat tarixi hisobga
-    olinadi (``manager_id`` bo'yicha).
-    """
     permission_classes = [AllowAny]
 
     def post(self, request):
@@ -179,8 +131,6 @@ class AIChatView(APIView):
         period = _clean_period(request.data.get('period') or
                                request.query_params.get('period'))
 
-        # Avval RAG (yuklangan hujjat bo'lsa), aks holda agent (DB tool'lari
-        # bilan) — agent foydalanuvchidan raqam so'ramaydi, real DB dan o'qiydi.
         try:
             if rag_mod.index_exists():
                 result = rag_mod.answer_question(question, manager_id=manager_id)
@@ -194,7 +144,7 @@ class AIChatView(APIView):
                 question, manager_id=manager_id,
                 source=source, period=period,
             )
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             logger.error('AI chat xatolik: %s', exc)
             return Response({'error': str(exc)},
                             status=status.HTTP_500_INTERNAL_SERVER_ERROR)
@@ -209,9 +159,7 @@ class AIChatView(APIView):
             'commands': result.get('commands', []),
         })
 
-
 class ChatHistoryView(APIView):
-    """Menejer suhbat tarixini olish yoki tozalash (Memory)."""
     permission_classes = [AllowAny]
 
     def get(self, request):
@@ -232,13 +180,7 @@ class ChatHistoryView(APIView):
         deleted = memory_mod.clear_history(manager_id)
         return Response({'status': 'cleared', 'deleted': deleted})
 
-
-# =============================================================================
-# Agent — avtomatik tahlil
-# =============================================================================
-
 class AgentAnalyzeView(APIView):
-    """AgentExecutor orqali dashboard ma'lumotlarini avtomatik tahlil qiladi."""
     permission_classes = [AllowAny]
 
     def post(self, request):
@@ -246,7 +188,7 @@ class AgentAnalyzeView(APIView):
                                request.query_params.get('source'))
         try:
             result = agent_mod.run_agent_analysis(source=source)
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             logger.error('Agent tahlil xatolik: %s', exc)
             return Response({'error': str(exc)},
                             status=status.HTTP_500_INTERNAL_SERVER_ERROR)
@@ -256,17 +198,7 @@ class AgentAnalyzeView(APIView):
             'steps': result['steps'],
         })
 
-
-# =============================================================================
-# Har-karta AI — dashboard kartalarini tahlil qilish va ko'rinishini
-# foydalanuvchi istagiga moslab o'zgartirish (dinamik dashboard).
-# =============================================================================
-
 class CardAnalyzeView(APIView):
-    """Bitta dashboard kartasini LangChain agenti orqali tahlil qiladi.
-
-    POST body: ``{card, source, period}``.
-    """
     permission_classes = [AllowAny]
 
     def post(self, request):
@@ -279,7 +211,7 @@ class CardAnalyzeView(APIView):
 
         try:
             result = agent_mod.run_card_analysis(card, source=source, period=period)
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             logger.error('Karta tahlil xatolik (%s): %s', card, exc)
             return Response({'error': str(exc)},
                             status=status.HTTP_500_INTERNAL_SERVER_ERROR)
@@ -290,15 +222,7 @@ class CardAnalyzeView(APIView):
             'steps': result['steps'],
         })
 
-
 class CardRenderView(APIView):
-    """Foydalanuvchi istagiga ko'ra kartaning AI view-spec'ini qaytaradi.
-
-    AI HTML yozmaydi — faqat xavfsiz JSON konfiguratsiya (chart turi,
-    metrik, saralash, limit) qaytaradi, frontend shu asosda chizadi.
-
-    POST body: ``{card, instruction, source, period}``.
-    """
     permission_classes = [AllowAny]
 
     def post(self, request):
@@ -318,20 +242,14 @@ class CardRenderView(APIView):
         try:
             spec = agent_mod.build_card_view_spec(
                 card, instruction, source=source, period=period)
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             logger.error('Karta view-spec xatolik (%s): %s', card, exc)
             return Response({'error': str(exc)},
                             status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
         return Response({'card': card, 'spec': spec})
 
-
-# =============================================================================
-# Yordamchi endpointlar
-# =============================================================================
-
 class ManagersListView(APIView):
-    """Menejerlar ro'yxati — chat'da suhbat egasini tanlash uchun."""
     permission_classes = [AllowAny]
 
     def get(self, request):
@@ -341,9 +259,7 @@ class ManagersListView(APIView):
         ]
         return Response({'managers': managers})
 
-
 class WeeklyReportView(APIView):
-    """Haftalik AI hisobot endpointi (dashboard'dagi "AI tahlil" tugmasi)."""
     permission_classes = [AllowAny]
 
     def get(self, request):

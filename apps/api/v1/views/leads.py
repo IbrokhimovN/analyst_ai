@@ -13,9 +13,7 @@ from ..serializers.leads import (
     LeadUpdateSerializer, ContactUpdateSerializer,
 )
 
-
 class LeadListView(generics.ListCreateAPIView):
-    """Leadlar ro'yxati (filter, search, pagination) + CRUD via CRM adapter."""
     serializer_class = LeadSerializer
     permission_classes = [AllowAny]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
@@ -26,7 +24,6 @@ class LeadListView(generics.ListCreateAPIView):
 
     def get_queryset(self):
         qs = Lead.objects.select_related('pipeline_ref', 'status_ref').all()
-        # source parametri bo'lmasa, barcha CRM lardan ko'rsatish
         return qs
 
     def get_serializer_class(self):
@@ -35,7 +32,6 @@ class LeadListView(generics.ListCreateAPIView):
         return LeadSerializer
 
     def create(self, request, *args, **kwargs):
-        """CRM adapter orqali yangi lead yaratish."""
         serializer = LeadCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
@@ -51,7 +47,6 @@ class LeadListView(generics.ListCreateAPIView):
                 status=status.HTTP_502_BAD_GATEWAY,
             )
 
-        # Lokal bazaga saqlash
         lead = Lead.objects.create(
             amocrm_id=result["crm_id"],
             source=source,
@@ -63,9 +58,7 @@ class LeadListView(generics.ListCreateAPIView):
 
         return Response(LeadSerializer(lead).data, status=status.HTTP_201_CREATED)
 
-
 class LeadDetailView(generics.RetrieveUpdateDestroyAPIView):
-    """Bitta lead batafsil va CRUD (update/delete)."""
     queryset = Lead.objects.select_related('pipeline_ref', 'status_ref').prefetch_related('contacts')
     permission_classes = [AllowAny]
 
@@ -92,14 +85,12 @@ class LeadDetailView(generics.RetrieveUpdateDestroyAPIView):
                 status=status.HTTP_502_BAD_GATEWAY,
             )
 
-        # Lokal bazani yangilash
         if 'name' in data:
             instance.name = data['name']
         if 'price' in data:
             instance.price = data['price']
         if 'pipeline_id' in data:
             instance.pipeline_id = data['pipeline_id']
-        # status va user lar hozircha update qilinmaydi local dbda 
         instance.save()
 
         return Response(LeadDetailSerializer(instance).data)
@@ -118,9 +109,7 @@ class LeadDetailView(generics.RetrieveUpdateDestroyAPIView):
         instance.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
-
 class ContactListView(generics.ListCreateAPIView):
-    """Kontaktlar ro'yxati + CRUD via CRM adapter."""
     serializer_class = ContactSerializer
     permission_classes = [AllowAny]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
@@ -138,7 +127,6 @@ class ContactListView(generics.ListCreateAPIView):
         return ContactSerializer
 
     def create(self, request, *args, **kwargs):
-        """CRM adapter orqali yangi kontakt yaratish."""
         serializer = ContactCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
@@ -166,9 +154,7 @@ class ContactListView(generics.ListCreateAPIView):
 
         return Response(ContactSerializer(contact).data, status=status.HTTP_201_CREATED)
 
-
 class ContactDetailView(generics.RetrieveUpdateDestroyAPIView):
-    """Bitta kontakt batafsil va CRUD (update/delete)."""
     queryset = Contact.objects.all()
     permission_classes = [AllowAny]
 
@@ -195,7 +181,6 @@ class ContactDetailView(generics.RetrieveUpdateDestroyAPIView):
                 status=status.HTTP_502_BAD_GATEWAY,
             )
 
-        # Lokal bazani yangilash
         if 'name' in data:
             instance.name = data['name']
         if 'phone' in data:

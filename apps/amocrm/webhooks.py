@@ -7,24 +7,17 @@ from django.views.decorators.http import require_POST
 
 logger = logging.getLogger(__name__)
 
-
 @csrf_exempt
 @require_POST
 def amocrm_webhook(request):
-    """
-    AmoCRM webhook endpointi.
-    AmoCRM yangi lead/kontakt qo'shilganda yoki o'zgarganda shu yerga POST yuboradi.
-    """
     try:
         data = json.loads(request.body) if request.content_type == 'application/json' else request.POST.dict()
         logger.info(f"AmoCRM webhook qabul qilindi: {data}")
 
-        # Lead yangilanganda sinxronlash
         if 'leads' in data:
             from .tasks import sync_leads
             sync_leads.delay()
 
-        # Kontakt yangilanganda
         if 'contacts' in data:
             from .tasks import sync_contacts
             sync_contacts.delay()
@@ -35,7 +28,5 @@ def amocrm_webhook(request):
         logger.error(f"Webhook xatolik: {e}")
         return JsonResponse({"error": str(e)}, status=500)
 
-
 def amocrm_webhook_verify(request):
-    """AmoCRM webhook verification (GET request)."""
     return HttpResponse("OK", status=200)

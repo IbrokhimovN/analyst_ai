@@ -1,18 +1,7 @@
 {% load humanize %}
-{% comment %}
-  _dash_body.html — dashboard'ning yangilanadigan qismi.
 
-  Bu partial ikki joyda ishlatiladi:
-    1. index.html ichida — sahifa birinchi yuklanganda.
-    2. DashboardDataView (/api/v1/dashboard/data/) — AJAX bilan
-       qayta render qilinib, #dash-root ichiga joylanadi.
-
-  Shu sababli butun dinamik mantiq (kartalar, json_script ma'lumotlari)
-  shu yerda jamlangan.
-{% endcomment %}
 <div class="dash">
 
-    <!-- ==================== KPI CARDS ==================== -->
     <div class="dash-kpis">
         <div class="dash-kpi">
             <div class="dash-kpi-top">
@@ -56,9 +45,8 @@
         </div>
     </div>
 
-    <!-- ==================== FUNNEL + CONVERSIONS ==================== -->
     <div class="dash-row dash-row-2-1">
-        <!-- Savdo voronkasi -->
+        
         <div class="dash-card" data-card="funnel">
             <div class="dash-card-head">
                 <span class="dch-icon">🔻</span>
@@ -70,7 +58,7 @@
                             title="AI tahlil va ko'rinish">🤖 AI</button>
                 </div>
             </div>
-            <!-- Jadval ko'rinishi -->
+            
             <div class="dash-view" id="funnel-table-view">
                 <div class="dash-funnel">
                     <div class="dash-funnel-graphic">
@@ -98,13 +86,12 @@
                     </table>
                 </div>
             </div>
-            <!-- Grafik ko'rinishi (bar chart) -->
+            
             <div class="dash-view dash-chart-area" id="funnel-chart-view" hidden>
                 <canvas id="funnelBarChart"></canvas>
             </div>
         </div>
 
-        <!-- Asosiy konversiyalar -->
         <div class="dash-card" data-card="conversions">
             <div class="dash-card-head">
                 <span class="dch-icon">📈</span>
@@ -130,9 +117,8 @@
         </div>
     </div>
 
-    <!-- ==================== MANAGERS + FINANCE ==================== -->
     <div class="dash-row dash-row-2-1">
-        <!-- Menejerlar reytingi -->
+        
         <div class="dash-card" data-card="managers">
             <div class="dash-card-head">
                 <span class="dch-icon">🏆</span>
@@ -144,7 +130,7 @@
                             title="AI tahlil va ko'rinish">🤖 AI</button>
                 </div>
             </div>
-            <!-- Jadval ko'rinishi -->
+            
             <div class="dash-view dash-table-wrap" id="managers-table-view">
                 <table class="dash-table">
                     <thead>
@@ -183,13 +169,12 @@
                     </tbody>
                 </table>
             </div>
-            <!-- Grafik ko'rinishi (pie chart) -->
+            
             <div class="dash-view dash-chart-area" id="managers-chart-view" hidden>
                 <canvas id="managersPieChart"></canvas>
             </div>
         </div>
 
-        <!-- Moliy ko'rsatkichlar -->
         <div class="dash-card" data-card="finance">
             <div class="dash-card-head">
                 <span class="dch-icon">💰</span>
@@ -220,9 +205,8 @@
         </div>
     </div>
 
-    <!-- ==================== DAILY DYNAMICS + LOSS REASONS ==================== -->
     <div class="dash-row dash-row-2-1">
-        <!-- Kunlik dinamika -->
+        
         <div class="dash-card" data-card="daily">
             <div class="dash-card-head">
                 <span class="dch-icon">📊</span>
@@ -237,7 +221,6 @@
             </div>
         </div>
 
-        <!-- Sotib olmadi (sabablar) -->
         <div class="dash-card" data-card="loss">
             <div class="dash-card-head">
                 <span class="dch-icon">❌</span>
@@ -265,9 +248,8 @@
         </div>
     </div>
 
-    <!-- ==================== FOLLOW-UP + INSIGHT + BEST DAYS ==================== -->
     <div class="dash-row dash-row-3">
-        <!-- Qoldirilganlar -->
+        
         <div class="dash-card" data-card="followup">
             <div class="dash-card-head">
                 <span class="dch-icon">📋</span>
@@ -298,7 +280,6 @@
             </div>
         </div>
 
-        <!-- Insight -->
         <div class="dash-card">
             <div class="dash-card-head">
                 <span class="dch-icon">💡</span>
@@ -319,7 +300,6 @@
             </div>
         </div>
 
-        <!-- Eng yaxshi kunlar -->
         <div class="dash-card" data-card="best_days">
             <div class="dash-card-head">
                 <span class="dch-icon">📅</span>
@@ -351,12 +331,12 @@
         </div>
     </div>
 
-    {# AI chat orqali yaratilgan custom kartalar shu yerda paydo bo'ladi. #}
+
     <div id="ai-custom-cards" class="dash-row dash-row-1" hidden></div>
 
 </div>
 
-{% comment %} Kartalarni JS bilan qayta chizish uchun xom ma'lumotlar {% endcomment %}
+
 {{ daily_dynamics|json_script:"daily-data" }}
 {{ funnel|json_script:"funnel-data" }}
 {{ top_managers|json_script:"managers-data" }}

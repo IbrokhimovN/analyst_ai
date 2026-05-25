@@ -1,10 +1,3 @@
-"""AmoCRM sinxronlash — yagona manba.
-
-Bu modul sinxronlash mantig'ining yagona nusxasini saqlaydi. Ham view
-(qo'lda 🔄 tugma, OAuth callback), ham Celery tasklar (avto 15 daqiqalik
-sinxronlash) shu funksiyalardan foydalanadi — shuning uchun ikkalasi ham
-bir xil to'liq ma'lumotni tortadi (users, loss_reason, FK lar bilan).
-"""
 import logging
 from datetime import datetime, timezone as tz
 
@@ -13,19 +6,12 @@ from .models import Lead, Contact, Pipeline, PipelineStatus, User
 
 logger = logging.getLogger(__name__)
 
-
 def _ts(value):
-    """AmoCRM unix timestamp ni timezone-aware datetime ga aylantirish."""
     if not value:
         return None
     return datetime.fromtimestamp(value, tz=tz.utc)
 
-
 def sync_pipelines(service=None):
-    """Pipeline va statuslarni sinxronlash.
-
-    Returns: sinxronlangan pipeline soni.
-    """
     service = service or AmoCRMService()
     data = service.get_pipelines()
     pipelines = data.get("_embedded", {}).get("pipelines", [])
@@ -56,12 +42,7 @@ def sync_pipelines(service=None):
     logger.info("%s pipeline sinxronlandi", len(pipelines))
     return len(pipelines)
 
-
 def sync_users(service=None):
-    """AmoCRM foydalanuvchilarini (menejerlarni) sinxronlash.
-
-    Returns: sinxronlangan foydalanuvchi soni.
-    """
     service = service or AmoCRMService()
     data = service.get_users()
     users = data.get("_embedded", {}).get("users", [])
@@ -82,12 +63,7 @@ def sync_users(service=None):
     logger.info("%s foydalanuvchi sinxronlandi", len(users))
     return len(users)
 
-
 def sync_leads(service=None):
-    """Leadlarni sinxronlash — loss_reason va pipeline/status FK lari bilan.
-
-    Returns: sinxronlangan lead soni.
-    """
     service = service or AmoCRMService()
     page = 1
     total = 0
@@ -99,7 +75,6 @@ def sync_leads(service=None):
             break
 
         for item in items:
-            # Pipeline va Status FK ni topish
             pipeline_ref = None
             status_ref = None
             if item.get("pipeline_id"):
@@ -111,7 +86,6 @@ def sync_leads(service=None):
                     amocrm_id=item["status_id"], pipeline=pipeline_ref
                 ).first()
 
-            # Yutqazish sababi (_embedded.loss_reason yoki custom_fields_values)
             loss_reason = ""
             reasons = item.get("_embedded", {}).get("loss_reason")
             if reasons:
@@ -149,12 +123,7 @@ def sync_leads(service=None):
     logger.info("%s lead sinxronlandi", total)
     return total
 
-
 def sync_contacts(service=None):
-    """Kontaktlarni sinxronlash — telefon va email bilan.
-
-    Returns: sinxronlangan kontakt soni.
-    """
     service = service or AmoCRMService()
     page = 1
     total = 0
@@ -194,16 +163,7 @@ def sync_contacts(service=None):
     logger.info("%s kontakt sinxronlandi", total)
     return total
 
-
 def sync_all_now():
-    """Barcha ma'lumotlarni ketma-ket sinxronlash.
-
-    Tartib muhim: avval pipelines (statuslar) va users, keyin leads —
-    chunki lead pipeline_ref/status_ref FK lari pipeline'ga bog'liq.
-    Har bosqich xatosi alohida ushlanadi, qolganlari davom etadi.
-
-    Returns: {"pipelines": N, "users": N, "leads": N, "contacts": N}
-    """
     service = AmoCRMService()
     result = {"pipelines": 0, "users": 0, "leads": 0, "contacts": 0}
 
@@ -215,7 +175,7 @@ def sync_all_now():
     ):
         try:
             result[key] = fn(service)
-        except Exception as exc:  # noqa: BLE001 — bosqich xatosi qolganini to'xtatmasligi kerak
+        except Exception as exc:
             logger.error("%s sinxronlashda xatolik: %s", key, exc)
 
     logger.info("Sinxronlash tugadi: %s", result)

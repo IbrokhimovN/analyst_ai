@@ -1,15 +1,11 @@
 from django.db import models
 
-
-# CRM manba tanlov
 CRM_SOURCE_CHOICES = [
     ('amocrm', 'AmoCRM'),
     ('bitrix', 'Bitrix24'),
 ]
 
-
 class AmoCRMToken(models.Model):
-    """AmoCRM OAuth tokenlarini saqlash."""
     access_token = models.TextField()
     refresh_token = models.TextField()
     expires_at = models.DateTimeField(null=True, blank=True)
@@ -23,9 +19,7 @@ class AmoCRMToken(models.Model):
     def __str__(self):
         return f"AmoCRM Token (updated: {self.updated_at})"
 
-
 class Pipeline(models.Model):
-    """AmoCRM sotuv pipeline (voronka)."""
     amocrm_id = models.IntegerField(unique=True, db_index=True)
     name = models.CharField(max_length=255)
     sort = models.IntegerField(default=0)
@@ -42,9 +36,7 @@ class Pipeline(models.Model):
     def __str__(self):
         return self.name
 
-
 class PipelineStatus(models.Model):
-    """Pipeline ichidagi bosqich (status)."""
     amocrm_id = models.IntegerField(db_index=True)
     pipeline = models.ForeignKey(Pipeline, on_delete=models.CASCADE, related_name='statuses')
     name = models.CharField(max_length=255)
@@ -62,9 +54,7 @@ class PipelineStatus(models.Model):
     def __str__(self):
         return f"{self.pipeline.name} → {self.name}"
 
-
 class Contact(models.Model):
-    """CRM kontakt (AmoCRM yoki Bitrix24)."""
     amocrm_id = models.IntegerField(unique=True, db_index=True)
     source = models.CharField(
         max_length=20, choices=CRM_SOURCE_CHOICES,
@@ -90,9 +80,7 @@ class Contact(models.Model):
     def __str__(self):
         return self.name or f"Contact #{self.amocrm_id}"
 
-
 class Lead(models.Model):
-    """CRM lead/deal (AmoCRM yoki Bitrix24)."""
     amocrm_id = models.IntegerField(unique=True, db_index=True)
     source = models.CharField(
         max_length=20, choices=CRM_SOURCE_CHOICES,
@@ -134,9 +122,7 @@ class Lead(models.Model):
     def __str__(self):
         return f"{self.name} — {self.price:,.0f} so'm"
 
-
 class User(models.Model):
-    """AmoCRM foydalanuvchi (menejer)."""
     amocrm_id = models.IntegerField(unique=True, db_index=True)
     name = models.CharField(max_length=255)
     email = models.EmailField(blank=True, default='')

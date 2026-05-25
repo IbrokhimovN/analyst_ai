@@ -7,68 +7,37 @@ from django.utils import timezone
 from apps.analytics.services import AnalyticsService
 from apps.amocrm.models import Lead, Contact
 
-# Davr (period) tanlovi — kunlik / haftalik / oylik / barchasi
 PERIOD_LABELS = {
     'day': 'Kunlik', 'week': 'Haftalik', 'month': 'Oylik', 'all': 'Barcha vaqt',
 }
 
-# Maxsus sana oralig'i: "range:YYYY-MM-DD:YYYY-MM-DD".
 RANGE_RE = re.compile(r'^range:\d{4}-\d{2}-\d{2}:\d{4}-\d{2}-\d{2}$')
 
-
 def clean_period(value):
-    """``period`` so'rov qiymatini normallashtiradi (yaroqsiz → None).
-
-    Ruxsat etilgan qiymatlar: 'day' | 'week' | 'month' yoki maxsus sana
-    oralig'i "range:YYYY-MM-DD:YYYY-MM-DD".
-    """
     if value in ('day', 'week', 'month'):
         return value
     if value and RANGE_RE.match(value):
         return value
     return None
 
-
 def clean_source(value):
-    """``source`` so'rov qiymatini normallashtiradi (yaroqsiz → None)."""
     return value if value in ('amocrm', 'bitrix') else None
 
-
 def build_dashboard_context(source=None, period=None):
-    """Dashboard uchun to'liq analitik kontekstni tayyorlaydi.
-
-    ``DashboardView`` (birinchi yuklash) va dinamik yangilash endpointi
-    (``api.v1.views.dashboard_data.DashboardDataView``) shu bitta
-    funksiyadan foydalanadi — mantiq ikki joyda takrorlanmasligi uchun.
-
-    Args:
-        source: CRM manbasi — ``'amocrm'`` | ``'bitrix'`` | ``None``.
-        period: davr — ``'day'`` | ``'week'`` | ``'month'`` | ``None``.
-
-    Returns:
-        Shablonga uzatiladigan kontekst lug'ati.
-    """
     ctx = {}
     try:
         service = AnalyticsService()
 
-        # Umumiy ko'rsatkichlar
         ctx["stats"] = service.get_summary(source=source, period=period)
-        # 4-bosqichli sotuv voronkasi (Lid → Call → Conversation → Sotuv)
         ctx["funnel"] = service.get_sales_funnel(source=source, period=period)
-        # Asosiy konversiyalar (rings)
         ctx["conversions"] = service.get_conversions(source=source, period=period)
 
-        # Menejerlar reytingi
         managers = service.get_by_manager(source=source, period=period)
         ctx["managers"] = managers
         ctx["top_managers"] = managers[:5]
 
-        # Moliyaviy ko'rsatkichlar
         ctx["finance"] = service.get_finance(source=source, period=period)
 
-        # Kunlik dinamika — maxsus sana oralig'i tanlansa aynan shu oraliq,
-        # aks holda oylik davrda 30, qolganida 7 kunlik oyna.
         if period and period.startswith('range:'):
             _, d1, d2 = period.split(':')
             ctx["daily_dynamics"] = service.get_daily_dynamics(
@@ -81,11 +50,8 @@ def build_dashboard_context(source=None, period=None):
             ctx["daily_dynamics"] = service.get_daily_dynamics(
                 days=dyn_days, source=source)
 
-        # Yutqazish sabablari
         ctx["loss_reasons"] = service.get_loss_reasons(source=source, period=period)
-        # Follow-up — qoldirilgan lidlar (yutqazganlar bo'yicha)
         ctx["followup"] = [m for m in managers if m["lost"]][:5] or managers[:5]
-        # Insight va eng yaxshi kunlar
         ctx["insights"] = service.get_insights(source=source, period=period)
         ctx["best_days"] = service.get_best_days(source=source, period=period)
 
@@ -113,9 +79,7 @@ def build_dashboard_context(source=None, period=None):
                                                         'Barcha vaqt')
     return ctx
 
-
 class DashboardView(TemplateView):
-    """Bosh sahifa — SAVDO BO'LIMI INTERAKTIV DASHBOARD."""
     template_name = "dashboard/index.html"
 
     def get_context_data(self, **kwargs):
@@ -125,9 +89,7 @@ class DashboardView(TemplateView):
         ctx.update(build_dashboard_context(source, period))
         return ctx
 
-
 class LeadsView(TemplateView):
-    """Leadlar ro'yxati sahifasi."""
     template_name = "dashboard/leads.html"
 
     def get_context_data(self, **kwargs):
@@ -136,9 +98,7 @@ class LeadsView(TemplateView):
         ctx["current_source"] = source or 'all'
         return ctx
 
-
 class ContactsView(TemplateView):
-    """Kontaktlar ro'yxati sahifasi."""
     template_name = "dashboard/contacts.html"
 
     def get_context_data(self, **kwargs):
@@ -147,9 +107,7 @@ class ContactsView(TemplateView):
         ctx["current_source"] = source or 'all'
         return ctx
 
-
 class AnalyticsView(TemplateView):
-    """Tahlil va grafiklar sahifasi."""
     template_name = "dashboard/analytics.html"
 
     def get_context_data(self, **kwargs):
@@ -158,9 +116,7 @@ class AnalyticsView(TemplateView):
         ctx["current_source"] = source or 'all'
         return ctx
 
-
 class AIChatView(TemplateView):
-    """AI bilan chat sahifasi."""
     template_name = "dashboard/ai_chat.html"
 
     def get_context_data(self, **kwargs):

@@ -4,20 +4,12 @@
 {% block page_title %}
 <div style="display:flex; align-items:center; gap:16px; flex-wrap:wrap;">
     <span style="font-size:1.15rem; font-weight:800;">👥 Kontaktlar</span>
-    <!-- <div class="crm-stats-bar" style="margin:0;">
-        <a href="?" class="crm-stat-badge crm-stat-badge-all {% if current_source == 'all' %}crm-active{% endif %}">Barchasi</a>
-        <a href="?source=amocrm" class="crm-stat-badge crm-stat-badge-amo {% if current_source == 'amocrm' %}crm-active{% endif %}">
-            <span class="crm-dot crm-dot-amo"></span> AmoCRM
-        </a>
-        <a href="?source=bitrix" class="crm-stat-badge crm-stat-badge-btx {% if current_source == 'bitrix' %}crm-active{% endif %}">
-            <span class="crm-dot crm-dot-btx"></span> Bitrix24
-        </a>
-    </div> -->
+    
 </div>
 {% endblock %}
 
 {% block content %}
-<!-- Filters -->
+
 <div class="filters-bar" id="contacts-filters">
     <div class="search-box">
         <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -39,7 +31,6 @@
     </div>
 </div>
 
-<!-- Contacts Table -->
 <div class="table-card" id="contacts-table-card">
     <div class="table-responsive">
         <table class="data-table" id="contacts-table">
@@ -65,7 +56,6 @@
         </table>
     </div>
 
-    <!-- Pagination -->
     <div class="pagination" id="contacts-pagination">
         <button class="btn btn-sm" id="btn-prev" disabled>← Oldingi</button>
         <span class="pagination-info" id="pagination-info">1-sahifa</span>
@@ -73,7 +63,6 @@
     </div>
 </div>
 
-<!-- Contact Detail Modal -->
 <div class="modal-overlay" id="contact-modal" style="display:none;">
     <div class="modal">
         <div class="modal-header">
@@ -81,15 +70,14 @@
             <button class="modal-close" id="modal-close">×</button>
         </div>
         <div class="modal-body" id="modal-contact-body">
-            <!-- Kontakt tafsilotlari shu yerda ko'rsatiladi -->
+            
         </div>
         <div class="modal-footer" style="padding: 16px 24px; border-top: 1px solid var(--border-color); display: flex; gap: 10px; justify-content: flex-end;" id="modal-contact-actions">
-            <!-- Actions -->
+            
         </div>
     </div>
 </div>
 
-<!-- Create/Edit Contact Modal -->
 <div class="modal-overlay" id="create-contact-modal" style="display:none;">
     <div class="modal" style="max-width: 450px;">
         <div class="modal-header">
@@ -115,7 +103,7 @@
                     <label>Kompaniya</label>
                     <input type="text" id="contact-form-company" class="search-input">
                 </div>
-                <!-- simple source selector for create -->
+                
                 <div class="detail-item" id="contact-source-group" style="margin-bottom: 12px;">
                     <label>CRM (Yaratish uchun)</label>
                     <select id="contact-form-source" class="filter-select" style="width: 100%;">
@@ -177,7 +165,6 @@
                 </tr>`;
             }).join('');
 
-            // Pagination
             document.getElementById('btn-prev').disabled = !data.previous;
             document.getElementById('btn-next').disabled = !data.next;
             document.getElementById('pagination-info').textContent = `${currentPage}-sahifa`;
@@ -233,8 +220,7 @@
         if(id) {
             document.getElementById('create-contact-title').textContent = 'Kontaktni Tahrirlash';
             document.getElementById('edit-contact-id').value = id;
-            document.getElementById('contact-source-group').style.display = 'none'; // Source is not editable
-            // Fetch and fill
+            document.getElementById('contact-source-group').style.display = 'none';
             API.get(`/contacts/${id}/`).then(data => {
                 document.getElementById('contact-form-name').value = data.name || '';
                 document.getElementById('contact-form-phone').value = data.phone || '';
@@ -291,7 +277,6 @@
         }
     }
 
-    // Event listeners
     document.getElementById('btn-prev').addEventListener('click', () => loadContacts(currentPage - 1));
     document.getElementById('btn-next').addEventListener('click', () => loadContacts(currentPage + 1));
     document.getElementById('modal-close').addEventListener('click', () => {
@@ -308,7 +293,6 @@
     });
     document.getElementById('filter-sort').addEventListener('change', () => loadContacts(1));
 
-    // Init
     loadContacts(1);
 </script>
 {% endblock %}

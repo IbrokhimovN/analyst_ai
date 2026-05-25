@@ -1,10 +1,3 @@
-/**
- * AI Chat Widget — Shadow DOM ichidagi suzuvchi yordamchi.
- *
- * Bosh sahifaga `<div id="ai-chat-widget"></div>` qo'yiladi va shu skript
- * uning ichida ShadowRoot yaratib, barcha style/markup'ni izolyatsiya
- * qiladi. Backend: POST /api/v1/ai/chat/ (rag_mod.answer_question).
- */
 (function () {
     'use strict';
 
@@ -20,8 +13,6 @@
     }
 
     function wrapTables(html) {
-        // Markdown jadvallarini scroll qilish uchun div bilan o'rab beradi —
-        // shunda bubble'ning o'zi gorizontal scroll qilmaydi, faqat jadval.
         return (html || '').replace(/<table([\s\S]*?)<\/table>/gi,
             '<div class="table-wrap"><table$1</table></div>');
     }
@@ -29,7 +20,7 @@
     function renderMarkdown(text) {
         if (window.marked && typeof window.marked.parse === 'function') {
             try { return wrapTables(window.marked.parse(text || '')); }
-            catch (e) { /* ignore */ }
+            catch (e) {  }
         }
         var div = document.createElement('div');
         div.textContent = text || '';
@@ -45,7 +36,7 @@
 
     function saveHistory(messages) {
         try { sessionStorage.setItem(STORAGE_KEY, JSON.stringify(messages.slice(-50))); }
-        catch (e) { /* quota — ignore */ }
+        catch (e) {  }
     }
 
     var STYLES = [
@@ -206,12 +197,6 @@
         'Loss kartasini yashir',
     ];
 
-    // ----- Chart rendering -----
-    // Shared modul (chart_render.js) orqali — barcha 43 tur shu yerda
-    // chiziladi. Modul `window.AIChartRender.renderInto(el, spec)` ni
-    // taqdim etadi. Bu yerda faqat bubble ichidagi sarlavha va konteyner
-    // yaratiladi.
-
     function appendChart(targetEl, spec) {
         var box = document.createElement('div');
         box.className = 'chart-box';
@@ -232,7 +217,6 @@
             box.appendChild(err);
         }
     }
-
 
     function esc(s) {
         var d = document.createElement('div');
@@ -260,8 +244,6 @@
         targetEl.appendChild(p);
     }
 
-    // Buyruqni dashboard'ga uzatamiz — sahifa darajasidagi listener
-    // (dashboard_dynamic.js) qabul qiladi.
     function dispatchCommand(cmd) {
         try {
             var evt = new CustomEvent('dashboard:command', {
@@ -279,7 +261,6 @@
         style.textContent = STYLES;
         root.appendChild(style);
 
-        // FAB
         var fab = document.createElement('button');
         fab.className = 'fab';
         fab.type = 'button';
@@ -295,7 +276,6 @@
             '</svg>';
         root.appendChild(fab);
 
-        // Panel
         var panel = document.createElement('div');
         panel.className = 'panel';
         panel.innerHTML =
@@ -368,7 +348,7 @@
         var btnClose = panel.querySelector('[data-action="close"]');
         var btnClear = panel.querySelector('[data-action="clear"]');
 
-        var MAX_REC_MS = 60000; // 60 sekund — avto-tugatish
+        var MAX_REC_MS = 60000;
 
         var state = { busy: false, history: loadHistory() };
         var voice = {
@@ -456,7 +436,6 @@
             state.busy = true;
             send.disabled = true;
 
-            // Remove welcome if shown
             var welcome = body.querySelector('.welcome');
             if (welcome) { welcome.remove(); }
 
@@ -499,11 +478,9 @@
                     }
                     thinking.innerHTML = html;
 
-                    // Grafiklarni bubble ichiga chizamiz.
                     var charts = Array.isArray(data.charts) ? data.charts : [];
                     charts.forEach(function (spec) { appendChart(thinking, spec); });
 
-                    // Dashboard buyruqlarini yuboramiz.
                     var cmds = Array.isArray(data.commands) ? data.commands : [];
                     cmds.forEach(function (cmd) {
                         var ok = dispatchCommand(cmd);
@@ -530,7 +507,6 @@
             renderWelcome();
         }
 
-        // ----- Voice recording -----
         function fmtDuration(ms) {
             var s = Math.max(0, Math.round(ms / 1000));
             var m = Math.floor(s / 60);
@@ -539,7 +515,6 @@
         }
 
         function makeWaveBars(blob, durationMs, onDone) {
-            // Audio'ni dekod qilib, 24 ta amplituda barini hisoblaymiz.
             var Ctx = window.AudioContext || window.webkitAudioContext;
             if (!Ctx || !blob) { onDone(null); return; }
             var reader = new FileReader();
@@ -556,7 +531,7 @@
                     }
                     var max = Math.max.apply(null, arr) || 1;
                     onDone(arr.map(function (v) { return v / max; }));
-                    try { ctx.close(); } catch (e) { /* ignore */ }
+                    try { ctx.close(); } catch (e) {  }
                 }, function () { onDone(null); });
             };
             reader.readAsArrayBuffer(blob);
@@ -618,7 +593,6 @@
             body.appendChild(wrap);
             scrollDown();
 
-            // To'lqin tasvirini orqa fonda dekod qilib chizamiz.
             makeWaveBars(blob, durationMs, function (arr) {
                 if (!arr) {
                     barEls.forEach(function (b, idx) {
@@ -648,7 +622,7 @@
                 });
                 playBtn.addEventListener('click', function () {
                     if (audio.paused) {
-                        audio.play().catch(function () { /* autoplay block */ });
+                        audio.play().catch(function () {  });
                         playBtn.innerHTML = pauseSVG;
                     } else {
                         audio.pause();
@@ -682,7 +656,6 @@
         function startRecording() {
             if (voice.recorder || voice.stopping || state.busy) { return; }
             if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-                // Eng tez-tez uchraydigan sabab — secure context emas (HTTP).
                 var isSecure = window.isSecureContext === true;
                 var msg;
                 if (!isSecure) {
@@ -706,7 +679,6 @@
                 voice.interim = '';
                 voice.start = Date.now();
 
-                // MediaRecorder — audio file
                 var mime = 'audio/webm';
                 try {
                     voice.recorder = new MediaRecorder(stream, { mimeType: mime });
@@ -718,7 +690,6 @@
                 });
                 voice.recorder.start();
 
-                // SpeechRecognition — jonli transkripsiya
                 var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
                 if (SR) {
                     var rec = new SR();
@@ -735,22 +706,19 @@
                         voice.interim = interim;
                         var shown = (voice.transcript + ' ' + interim).trim();
                         recTextEl.textContent = shown || 'Tinglayapman...';
-                        // Pastga avto-scroll qilamiz
                         recTextEl.scrollTop = recTextEl.scrollHeight;
                     });
                     rec.addEventListener('error', function (e) {
-                        // 'no-speech' va boshqalarni indamasdan o'tkazamiz.
                         if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
                             cancelRecording();
                         }
                     });
                     rec.addEventListener('end', function () {
-                        // Avto-tugashda yana yoqib qo'yamiz (continuous bo'lsa ham toza chiqishi mumkin)
                         if (voice.recorder && voice.recorder.state === 'recording') {
-                            try { rec.start(); } catch (e) { /* ignore */ }
+                            try { rec.start(); } catch (e) {  }
                         }
                     });
-                    try { rec.start(); } catch (e) { /* ignore */ }
+                    try { rec.start(); } catch (e) {  }
                     voice.recognition = rec;
                 }
 
@@ -764,7 +732,7 @@
         function teardownRecording() {
             if (voice.timer) { clearInterval(voice.timer); voice.timer = 0; }
             if (voice.recognition) {
-                try { voice.recognition.onend = null; voice.recognition.stop(); } catch (e) { /* */ }
+                try { voice.recognition.onend = null; voice.recognition.stop(); } catch (e) {  }
                 voice.recognition = null;
             }
             if (voice.stream) {
@@ -779,12 +747,11 @@
         function cancelRecording() {
             if (voice.stopping) { return; }
             voice.stopping = true;
-            // Recorder ni indikatorsiz to'xtatamiz — stop event'ini ignore qilamiz.
             if (voice.recorder) {
                 try {
                     voice.recorder.onstop = null;
                     if (voice.recorder.state !== 'inactive') { voice.recorder.stop(); }
-                } catch (e) { /* */ }
+                } catch (e) {  }
             }
             voice.chunks = [];
             voice.transcript = '';
@@ -802,7 +769,6 @@
             var chunks = voice.chunks;
             var transcript = (voice.transcript + ' ' + voice.interim).trim();
 
-            // Recognition'ni darhol to'xtatamiz, recorder.stop()'ni kutamiz
             if (voice.recognition) {
                 try { voice.recognition.onend = null; voice.recognition.stop(); } catch (e) {}
                 voice.recognition = null;
@@ -838,8 +804,6 @@
         }
 
         function askAI(text) {
-            // Voice rejimi uchun — user bubble qo'shmasdan API'ga yuboradi
-            // (chunki appendVoiceMessage allaqachon bubble qo'ydi).
             if (!text || state.busy) { return; }
             state.busy = true;
             send.disabled = true;
@@ -901,13 +865,11 @@
                 });
         }
 
-        // Auto-resize textarea
         function autosize() {
             input.style.height = 'auto';
             input.style.height = Math.min(input.scrollHeight, 120) + 'px';
         }
 
-        // Events — bir marta init paytida ulanadi.
         fab.addEventListener('click', toggle);
         btnClose.addEventListener('click', close);
         btnClear.addEventListener('click', clearChat);
@@ -926,12 +888,10 @@
         recCancelBtn.addEventListener('click', cancelRecording);
         recSendBtn.addEventListener('click', stopRecording);
 
-        // Close on Escape when panel focused
         root.addEventListener('keydown', function (e) {
             if (e.key === 'Escape' && panel.classList.contains('open')) { close(); }
         });
 
-        // Initial render
         rehydrate();
     }
 

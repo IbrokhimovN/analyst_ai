@@ -1,19 +1,8 @@
-"""
-AmoCRM dan ma'lumotlarni bir martalik tortib olish uchun management command.
-
-Foydalanish:
-  1. Avval AmoCRM integratsiyadan authorization code oling
-  2. python manage.py sync_amocrm --code YOUR_AUTH_CODE
-  
-  Yoki agar token allaqachon mavjud bo'lsa:
-  3. python manage.py sync_amocrm
-"""
 import logging
 
 from django.core.management.base import BaseCommand, CommandError
 
 logger = logging.getLogger(__name__)
-
 
 class Command(BaseCommand):
     help = "AmoCRM dan barcha ma'lumotlarni sinxronlash"
@@ -32,7 +21,6 @@ class Command(BaseCommand):
 
         code = options.get('code')
 
-        # Agar code berilgan bo'lsa — avval token olish
         if code:
             self.stdout.write(self.style.WARNING("Authorization code bilan token olish..."))
             try:
@@ -49,7 +37,6 @@ class Command(BaseCommand):
             except Exception as e:
                 raise CommandError(f"Token olishda xatolik: {e}")
 
-        # Token borligini tekshirish
         if not AmoCRMToken.objects.exists():
             self.stdout.write(self.style.ERROR(
                 "\n❌ AmoCRM token topilmadi!\n"
@@ -64,7 +51,6 @@ class Command(BaseCommand):
             ))
             return
 
-        # Sinxronlash
         self.stdout.write(self.style.WARNING("\n🔄 Ma'lumotlar sinxronlash boshlandi...\n"))
 
         try:

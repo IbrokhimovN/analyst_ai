@@ -1,14 +1,3 @@
-"""Agent — savdo dashboard ma'lumotlarini avtomatik tahlil qiluvchi.
-
-LangChain **AgentExecutor** ishlatiladi. Agentga to'rtta maxsus *tool*
-beriladi — har biri ``AnalyticsService`` orqali dashboard ma'lumotlarini
-(lidlar, calllar, konversiya, sotuv, voronka, yutqazish sabablari)
-qaytaradi. Claude bu tool'larni o'zi chaqirib, ma'lumotni ko'rib chiqadi
-va xulosa beradi: qaysi menejer past ishlayapti, voronkaning qaysi
-bosqichi zaif, nima qilish kerak.
-
-Asosiy kirish nuqtasi — :func:`run_agent_analysis`.
-"""
 import json
 import logging
 
@@ -18,10 +7,8 @@ from .langchain_setup import get_llm
 
 logger = logging.getLogger(__name__)
 
-# Agentni cheksiz tsikldan saqlash uchun tool chaqiruvlari chegarasi.
 MAX_ITERATIONS = 8
 
-# Agentning vazifasi va xulqi.
 _SYSTEM_PROMPT = """Siz savdo bo'limining professional AI tahlilchisisiz.
 Sizga dashboard ma'lumotlarini qaytaruvchi tool'lar berilgan. Avval
 kerakli tool'larni chaqirib ma'lumotlarni yig'ing, keyin tahlil qiling.
@@ -35,58 +22,43 @@ Tahlil natijasi quyidagilarni o'z ichiga olishi shart:
 
 Javobni o'zbek tilida, Markdown formatda, sarlavhalar bilan bering."""
 
-
 def _build_tools(source=None, period=None):
-    """Agent uchun dashboard ma'lumotlarini qaytaruvchi tool'lar ro'yxati.
-
-    Har bir tool ``AnalyticsService`` natijasini JSON matn sifatida
-    qaytaradi. ``source`` (amocrm/bitrix/None) va ``period`` (day/week/
-    month/None) closure orqali biriktiriladi.
-    """
     from langchain_core.tools import Tool
 
     svc = AnalyticsService()
 
     def _summary(_input: str = '') -> str:
-        """Umumiy ko'rsatkichlar."""
         return json.dumps(svc.get_summary(source=source, period=period),
                           ensure_ascii=False)
 
     def _managers(_input: str = '') -> str:
-        """Menejerlar kesimida statistika."""
         return json.dumps(svc.get_by_manager(source=source, period=period),
                           ensure_ascii=False)
 
     def _funnel(_input: str = '') -> str:
-        """Voronka bosqichlari va konversiyalar."""
         return json.dumps({
             'funnel': svc.get_sales_funnel(source, period),
             'conversions': svc.get_conversions(source, period),
         }, ensure_ascii=False)
 
     def _loss(_input: str = '') -> str:
-        """Yutqazish sabablari."""
         return json.dumps(svc.get_loss_reasons(source=source, period=period),
                           ensure_ascii=False)
 
     def _conversions(_input: str = '') -> str:
-        """Asosiy konversiya nisbatlari (rings)."""
         return json.dumps(svc.get_conversions(source, period),
                           ensure_ascii=False)
 
     def _daily(_input: str = '') -> str:
-        """Kunlik dinamika (lid/sotuv/konversiya kun bo'yicha)."""
         return json.dumps(svc.get_daily_dynamics(source=source),
                           ensure_ascii=False)
 
     def _followup(_input: str = '') -> str:
-        """Follow-up — qoldirilgan lidlar (menejer kesimida)."""
         managers = svc.get_by_manager(source=source, period=period)
         rows = [m for m in managers if m.get('lost')][:10] or managers[:10]
         return json.dumps(rows, ensure_ascii=False)
 
     def _best_days(_input: str = '') -> str:
-        """Eng samarali hafta kunlari."""
         return json.dumps(svc.get_best_days(source=source, period=period),
                           ensure_ascii=False)
 
@@ -159,10 +131,6 @@ def _build_tools(source=None, period=None):
         ),
     ]
 
-
-# Chat agent uchun batafsil system prompt — har bir tool qachon va qanday
-# ishlatilishi misol bilan. Modelga "foydalanuvchidan ma'lumot so'rash" yoki
-# "men buni qila olmayman" deyishni QAT'IY taqiqlaydi.
 _CHAT_SYSTEM_PROMPT = """Siz savdo dashboardining proaktiv AI yordamchisisiz.
 Sizga real PostgreSQL bazaga to'liq ulangan tool'lar berilgan. Foydalanuvchi
 nima so'rasa, siz tool'lar orqali aniq ma'lumot olib, BAJARISHGA harakat
@@ -320,27 +288,8 @@ XULOSA STILI
 • Salom-alik yoki bog'liq bo'lmagan savolga: tool chaqirmasdan qisqa javob.
 """
 
-
 def chat_with_agent(question: str, manager_id: int = 0,
                     source=None, period=None) -> dict:
-    """Erkin suhbat — AgentExecutor + DB tool'lar + chart/command tool'lar.
-
-    Widget va `/ai-chat/` sahifasi shu funksiyani chaqiradi. Foydalanuvchi
-    statistika, grafik yoki dashboard buyrug'ini so'rasa — agent mos tool'ni
-    chaqiradi, natija javob bilan birga ``charts`` va ``commands`` ro'yxati
-    sifatida qaytadi.
-
-    Args:
-        question: foydalanuvchi savoli.
-        manager_id: suhbat egasi IDsi (umumiy uchun 0).
-        source: CRM filtri — ``'amocrm'`` | ``'bitrix'`` | ``None``.
-        period: davr filtri — ``'day'`` | ``'week'`` | ``'month'`` | ``None``.
-
-    Returns:
-        ``{'answer', 'sources', 'used_rag', 'steps', 'charts', 'commands'}``.
-        ``charts`` — chatda chiziladigan Chart.js spec ro'yxati.
-        ``commands`` — dashboard'ga yuboriladigan buyruqlar ro'yxati.
-    """
     from langchain.agents import AgentExecutor, create_tool_calling_agent
     from langchain.prompts import ChatPromptTemplate, MessagesPlaceholder
     from langchain_core.tools import StructuredTool
@@ -355,8 +304,6 @@ def chat_with_agent(question: str, manager_id: int = 0,
                 'used_rag': False, 'steps': [],
                 'charts': [], 'commands': []}
 
-    # Closure orqali tool natijalarini yig'amiz — javob bilan birga
-    # frontend'ga uzatamiz.
     chart_specs = []
     commands = []
 
@@ -364,7 +311,6 @@ def chat_with_agent(question: str, manager_id: int = 0,
 
     def _make_chart_tool(card='', view_type='bar', metric='', metrics=None,
                          sort_by='', sort_dir='desc', limit=0, title='') -> str:
-        """`make_chart` tool — chatda grafik chizish uchun spec qaytaradi."""
         if card not in _CARD_FIELDS:
             return (f'Xato: noma\'lum karta "{card}". Quyidagilardan tanlang: '
                     f'{", ".join(_CARD_FIELDS.keys())}.')
@@ -384,7 +330,6 @@ def chat_with_agent(question: str, manager_id: int = 0,
     def _dashboard_command_tool(action='', card='', view_type='bar',
                                  metric='', metrics=None, sort_by='',
                                  sort_dir='desc', limit=0, title='') -> str:
-        """`dashboard_command` tool — dashboard'ni boshqarish buyrug'i."""
         action = (action or '').strip()
         valid_actions = {
             'show_card', 'hide_card', 'set_card_view',
@@ -502,10 +447,9 @@ def chat_with_agent(question: str, manager_id: int = 0,
     steps = [getattr(a, 'tool', 'tool')
              for a, _ in result.get('intermediate_steps', [])]
 
-    # Suhbat tarixini bazaga yozamiz.
     try:
         memory_mod.save_turn(manager_id, question, output)
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         logger.warning('Memory save xato: %s', exc)
 
     logger.info('Chat agent: manager=%s, tools=%s, charts=%d, commands=%d',
@@ -513,14 +457,6 @@ def chat_with_agent(question: str, manager_id: int = 0,
     return {'answer': output, 'sources': [], 'used_rag': False,
             'steps': steps, 'charts': chart_specs, 'commands': commands}
 
-
-# =============================================================================
-# Chatda grafik chizish uchun spec — backend frontend uchun tayyor data
-# qaytaradi (frontend Chart.js orqali chizadi).
-# =============================================================================
-
-# Metrik kalitlari uchun o'zbekcha sarlavhalar (chat grafiklarida ham
-# ishlatamiz, dashboard frontendiga mos).
 _METRIC_LABELS = {
     'count': 'Soni', 'pct': 'Foiz, %', 'revenue': 'Tushum', 'won': 'Sotuv',
     'calls': 'Call', 'conversations': 'Conversation', 'total_leads': 'Lidlar',
@@ -532,9 +468,7 @@ _METRIC_LABELS = {
     'lead_value': '1 lid qiymati', 'sale_value': '1 sale qiymati',
 }
 
-
 def _chart_rows(card, source=None, period=None):
-    """Karta uchun grafik chizishga tayyor qatorlar (massiv)."""
     svc = AnalyticsService()
     if card == 'funnel':
         return svc.get_sales_funnel(source, period) or []
@@ -568,14 +502,8 @@ def _chart_rows(card, source=None, period=None):
         ]
     return []
 
-
 def _build_chat_chart_spec(card, view_type, metric, metrics, sort_by,
                             sort_dir, limit, title, source, period):
-    """Chat ichida chiziladigan grafik uchun spec qaytaradi.
-
-    Returns:
-        (spec_dict, error_str). Xato bo'lmasa ``error_str`` bo'sh.
-    """
     meta = _CARD_FIELDS.get(card)
     if not meta:
         return None, f'noma\'lum karta {card}'
@@ -638,19 +566,7 @@ def _build_chat_chart_spec(card, view_type, metric, metrics, sort_by,
         'limit': limit,
     }, ''
 
-
 def run_agent_analysis(source=None, period=None) -> dict:
-    """Dashboard ma'lumotlarini AgentExecutor orqali avtomatik tahlil qiladi.
-
-    Args:
-        source: CRM manbasi filtri — ``'amocrm'``, ``'bitrix'`` yoki ``None``
-            (barchasi).
-        period: davr filtri — ``'day'`` | ``'week'`` | ``'month'`` | ``None``.
-
-    Returns:
-        ``{'analysis': str, 'steps': list[str]}`` — tahlil matni va agent
-        chaqirgan tool'lar ro'yxati.
-    """
     from langchain.agents import AgentExecutor, create_tool_calling_agent
     from langchain.prompts import ChatPromptTemplate, MessagesPlaceholder
 
@@ -680,8 +596,6 @@ def run_agent_analysis(source=None, period=None) -> dict:
 
     result = executor.invoke({'input': task})
 
-    # Claude javobi matn yoki kontent bloklari ro'yxati bo'lishi mumkin —
-    # ikkala holatni ham bitta matnga keltiramiz.
     output = result['output']
     if isinstance(output, list):
         output = '\n'.join(
@@ -689,7 +603,6 @@ def run_agent_analysis(source=None, period=None) -> dict:
             for block in output
         )
 
-    # Agent qaysi tool'larni chaqirganini yig'amiz (shaffoflik uchun).
     steps = []
     for action, _observation in result.get('intermediate_steps', []):
         steps.append(getattr(action, 'tool', 'tool'))
@@ -697,60 +610,33 @@ def run_agent_analysis(source=None, period=None) -> dict:
     logger.info('Agent tahlili tugadi: %s tool chaqirildi', len(steps))
     return {'analysis': output, 'steps': steps}
 
-
-# =============================================================================
-# Har-karta AI — bitta dashboard kartasini tahlil qilish va ko'rinishini
-# foydalanuvchi istagiga moslab o'zgartirish (dinamik dashboard uchun).
-# =============================================================================
-
-# =============================================================================
-# Kengaytirilgan grafik turlari — to'liq 43 ta canonical nom + aliaslar.
-# Frontend renderer hammasini chizadi: Chart.js core + plaginlar
-# (treemap/sankey/matrix/boxplot/geo) + custom canvas/SVG renderlar
-# (waffle/bullet/bump/sunburst/network/chord/arc va h.k.).
-# =============================================================================
 _VIEWS_FULL = [
-    # ----- 1. Bar family -----
     'barChart', 'columnChart', 'groupedBar', 'stackedBar',
     'horizontalBar', 'horizontalStackedBar', 'percentBar', 'rangeBar',
     'bulletChart',
-    # ----- 2. Line / Area family -----
     'lineChart', 'areaChart', 'stackedArea', 'streamGraph',
     'stepChart', 'bumpChart', 'sparkline',
     'smoothLine', 'straightLine', 'dashedLine', 'multiLine', 'pointLine',
     'smoothArea', 'percentArea', 'gradientArea',
-    # ----- 3. Pie / Radial family -----
     'pieChart', 'doughnutChart', 'halfPie', 'halfDoughnut',
     'semicircleDoughnut', 'gaugeChart', 'polarArea', 'nightingaleRose',
     'waffleChart', 'sunburst', 'marimekko',
-    # ----- 4. Distribution -----
     'histogram', 'boxPlot', 'violinPlot', 'dotPlot', 'densityChart',
-    # ----- 5. Correlation / Scatter -----
     'scatterPlot', 'bubbleChart', 'connectedScatter', 'jitterScatter',
     'bubbleHeatmap', 'heatmap', 'correlationMatrix',
-    # ----- 6. Radar / Spider -----
     'radarChart', 'spiderChart', 'filledRadar', 'multiRadar',
-    # ----- 7. Geo -----
     'choroplethMap', 'bubbleMap', 'flowMap', 'geoHeatmap',
-    # ----- 8. Flow / Hierarchy -----
     'sankeyDiagram', 'funnelChart', 'waterfallChart', 'ganttChart',
     'treemap',
-    # ----- 9. Network -----
     'networkGraph', 'chordDiagram', 'arcDiagram',
-    # ----- 10. Display / KPI -----
     'kpiCard', 'metricTile', 'progressBar', 'table', 'numberCards',
-    # ----- Combo -----
     'barLine', 'areaBar', 'dualAxisBar', 'comboMultiAxis',
-    # ----- Legacy aliaslar (eski kod uchun) -----
     'bar', 'line', 'area', 'pie', 'doughnut', 'radar', 'spiderWeb',
     'scatter', 'bubble', 'gauge', 'stacked', 'columnBar', 'stepBar',
     'waterfallBar', 'splineLine', 'steppedLine', 'kpi', 'gantt',
     'sankey',
 ]
 
-# Har bir dashboard kartasining "metama'lumoti". AI shu asosda qaysi
-# sonli ko'rsatkich va qaysi ko'rinish (chart turi) mumkinligini biladi —
-# bu uni xato/xavfli qiymat qaytarishdan saqlaydi.
 _CARD_FIELDS = {
     'funnel': {
         'label': 'Savdo voronkasi',
@@ -811,12 +697,9 @@ _CARD_FIELDS = {
     },
 }
 
-# Tashqi modullar tekshiruvi uchun — ruxsat etilgan karta kalitlari.
 CARD_KEYS = tuple(_CARD_FIELDS.keys())
 
-
 def _card_data(card, source=None, period=None):
-    """Bitta karta uchun ``AnalyticsService`` xom ma'lumotini qaytaradi."""
     svc = AnalyticsService()
     if card == 'funnel':
         return {
@@ -840,22 +723,7 @@ def _card_data(card, source=None, period=None):
         return svc.get_best_days(source=source, period=period)
     raise ValueError(f'Noma\'lum karta: {card}')
 
-
 def run_card_analysis(card, source=None, period=None) -> dict:
-    """Bitta dashboard kartasini LangChain AgentExecutor orqali tahlil qiladi.
-
-    Global :func:`run_agent_analysis` dan farqi — agentga faqat shu
-    kartaga tegishli bitta tool beriladi, natija qisqa va fokuslangan
-    bo'ladi (karta ichida ko'rsatish uchun).
-
-    Args:
-        card: karta kaliti — ``funnel`` | ``managers`` | ``loss`` | ``finance``.
-        source: CRM manbasi filtri.
-        period: davr filtri — ``day`` | ``week`` | ``month`` | ``None``.
-
-    Returns:
-        ``{'analysis': str, 'steps': list[str]}``.
-    """
     from langchain.agents import AgentExecutor, create_tool_calling_agent
     from langchain.prompts import ChatPromptTemplate, MessagesPlaceholder
 
@@ -863,7 +731,6 @@ def run_card_analysis(card, source=None, period=None) -> dict:
     if not meta:
         raise ValueError(f'Noma\'lum karta: {card}')
 
-    # Faqat shu kartaga tegishli tool(lar)ni qoldiramiz.
     all_tools = _build_tools(source, period)
     tools = [t for t in all_tools if t.name == meta['tool']] or all_tools
 
@@ -901,12 +768,7 @@ def run_card_analysis(card, source=None, period=None) -> dict:
     logger.info('Karta tahlili tugadi: card=%s, %s tool', card, len(steps))
     return {'analysis': output, 'steps': steps}
 
-
-# AI qaytaradigan view-spec JSON sxemasi shabloni. ``with_structured_output``
-# modeldan aynan shu tuzilishni majburan talab qiladi — model erkin HTML
-# emas, faqat oldindan belgilangan, xavfsiz parametrlarni to'ldiradi.
 def _view_spec_schema(meta):
-    """Karta metama'lumotidan view-spec JSON sxemasini quradi."""
     return {
         'title': 'CardViewSpec',
         'description': 'Dashboard kartasini ko\'rsatish konfiguratsiyasi.',
@@ -962,31 +824,11 @@ def _view_spec_schema(meta):
                      'limit', 'title', 'note'],
     }
 
-
 def build_card_view_spec(card, instruction, source=None, period=None) -> dict:
-    """Foydalanuvchi istagiga ko'ra kartaning ko'rinish konfiguratsiyasini qaytaradi.
-
-    LangChain ``ChatAnthropic`` modeli ``with_structured_output`` bilan
-    ishlatiladi — model erkin matn yoki HTML emas, qat'iy JSON sxemani
-    qaytaradi. Bu xavfsiz: AI faqat oldindan belgilangan parametrlarni
-    (chart turi, metrik, saralash, limit) to'ldiradi, frontend esa shu
-    konfiguratsiya asosida kartani chizadi.
-
-    Args:
-        card: karta kaliti.
-        instruction: foydalanuvchining erkin matnli istagi, masalan
-            "pie chart qil" yoki "faqat top 3 menejerni ko'rsat".
-        source, period: ma'lumot filtri (model namuna ko'rishi uchun).
-
-    Returns:
-        view-spec lug'ati: ``card``, ``viewType``, ``metric``, ``sortBy``,
-        ``sortDir``, ``limit``, ``title``, ``note``.
-    """
     meta = _CARD_FIELDS.get(card)
     if not meta:
         raise ValueError(f'Noma\'lum karta: {card}')
 
-    # Modelga ma'lumot tuzilishini ko'rsatish uchun qisqa namuna.
     data = _card_data(card, source, period)
     sample = json.dumps(data, ensure_ascii=False)[:1400]
 
@@ -1010,10 +852,8 @@ def build_card_view_spec(card, instruction, source=None, period=None) -> dict:
         'bo\'lishi shart; "metrics" bo\'sh bo\'lmasin (kamida [metric]).'
     )
     spec = structured.invoke(message)
-    # with_structured_output natijasi dict yoki obyekt bo'lishi mumkin.
     if not isinstance(spec, dict):
         spec = dict(spec)
-    # Xavfsiz fallback: metrics bo'sh bo'lsa, kamida asosiy metric ni qo'yamiz.
     metrics = spec.get('metrics') or []
     if not isinstance(metrics, list):
         metrics = []

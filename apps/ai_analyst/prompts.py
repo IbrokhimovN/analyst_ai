@@ -1,6 +1,3 @@
-"""
-AI Analyst uchun prompt shablonlari.
-"""
 
 SYSTEM_PROMPT = """
 Siz AmoCRM sotuv ma'lumotlarini tahlil qiladigan professional biznes analitikisiz.

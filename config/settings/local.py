@@ -1,22 +1,6 @@
-"""
-Local development settings.
-"""
-from .base import *  # noqa: F401, F403
+from .base import *
 
 DEBUG = True
-
-# Local development uchun in-memory channel layer
-# (Redis ishlamasa ham ishlaydi)
-# CHANNEL_LAYERS = {
-#     'default': {
-#         'BACKEND': 'channels.layers.InMemoryChannelLayer',
-#     }
-# }
-
-# Django Debug Toolbar (ixtiyoriy)
-# INSTALLED_APPS += ['debug_toolbar']
-# MIDDLEWARE.insert(0, 'debug_toolbar.middleware.DebugToolbarMiddleware')
-# INTERNAL_IPS = ['127.0.0.1']
 
 LOGGING = {
     'version': 1,

@@ -1,7 +1,6 @@
 from rest_framework import serializers
 from apps.amocrm.models import Lead, Contact
 
-
 class ContactSerializer(serializers.ModelSerializer):
     class Meta:
         model = Contact
@@ -9,7 +8,6 @@ class ContactSerializer(serializers.ModelSerializer):
             'id', 'amocrm_id', 'source', 'name', 'first_name', 'last_name',
             'company', 'phone', 'email', 'created_at', 'updated_at',
         ]
-
 
 class LeadSerializer(serializers.ModelSerializer):
     pipeline_name = serializers.CharField(source='pipeline_ref.name', default='', read_only=True)
@@ -24,7 +22,6 @@ class LeadSerializer(serializers.ModelSerializer):
             'responsible_user_id', 'loss_reason',
             'created_at', 'updated_at', 'closed_at',
         ]
-
 
 class LeadDetailSerializer(serializers.ModelSerializer):
     pipeline_name = serializers.CharField(source='pipeline_ref.name', default='', read_only=True)
@@ -42,9 +39,7 @@ class LeadDetailSerializer(serializers.ModelSerializer):
             'created_at', 'updated_at', 'closed_at',
         ]
 
-
 class LeadCreateSerializer(serializers.Serializer):
-    """CRM ga lead yaratish uchun serializer."""
     source = serializers.ChoiceField(
         choices=['amocrm', 'bitrix'],
         default='amocrm',
@@ -56,9 +51,7 @@ class LeadCreateSerializer(serializers.Serializer):
     stage_id = serializers.CharField(required=False)
     responsible_user_id = serializers.IntegerField(required=False)
 
-
 class ContactCreateSerializer(serializers.Serializer):
-    """CRM ga kontakt yaratish uchun serializer."""
     source = serializers.ChoiceField(
         choices=['amocrm', 'bitrix'],
         default='amocrm',
@@ -69,18 +62,14 @@ class ContactCreateSerializer(serializers.Serializer):
     email = serializers.EmailField(required=False, default='')
     company = serializers.CharField(max_length=255, required=False, default='')
 
-
 class LeadUpdateSerializer(serializers.Serializer):
-    """CRM da lead yangilash uchun serializer."""
     name = serializers.CharField(max_length=255, required=False)
     price = serializers.DecimalField(max_digits=15, decimal_places=2, required=False)
     pipeline_id = serializers.IntegerField(required=False)
     stage_id = serializers.CharField(required=False)
     responsible_user_id = serializers.IntegerField(required=False)
 
-
 class ContactUpdateSerializer(serializers.Serializer):
-    """CRM da kontakt yangilash uchun serializer."""
     name = serializers.CharField(max_length=255, required=False)
     phone = serializers.CharField(max_length=100, required=False)
     email = serializers.EmailField(required=False)

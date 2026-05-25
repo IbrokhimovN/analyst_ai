@@ -16,9 +16,8 @@
             <button type="button" class="dperiod {% if current_period == 'month' %}dperiod-on{% endif %}" data-period="month" onclick="setPeriod('month')">Oylik</button>
             <button type="button" class="dperiod {% if current_period == 'all' %}dperiod-on{% endif %}"   data-period="all"   onclick="setPeriod('all')">Barchasi</button>
             <button type="button" class="dperiod dperiod-range" data-period="range"
-                    id="dperiod-range-btn" onclick="toggleRangePicker()">📅 Oraliq</button>
+                    id="dperiod-range-btn" onclick="toggleRangePicker()">📅 Sana</button>
 
-            <!-- Maxsus sana oralig'i tanlash paneli (popover) -->
             <div class="dash-range" id="dash-range" hidden>
                 <div class="dash-range-row">
                     <label class="dash-range-field">
@@ -39,7 +38,7 @@
 {% endblock %}
 
 {% block content %}
-<!-- Dinamik yangilanadigan qism — dashboard_dynamic.js shu div ichini AJAX bilan almashtiradi -->
+
 <div id="dash-root">
     {% include "dashboard/_dash_body.html" %}
 </div>

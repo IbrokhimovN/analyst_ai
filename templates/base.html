@@ -6,30 +6,22 @@
     <meta name="description" content="AmoCRM AI Dashboard — sotuv tahlillari va AI tavsiyalar">
     <title>{% block title %}ANALYST{% endblock %}</title>
 
-    <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 
-    <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 
-    <!-- Chart.js qo'shimcha plaginlar (treemap, sankey, matrix/heatmap,
-         box/violin plot, geo xaritalar uchun) — agent yoki widget tomonidan
-         chaqirilganda yuklanadi. -->
     <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-treemap@2.3.1/dist/chartjs-chart-treemap.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-sankey@0.12.1/dist/chartjs-chart-sankey.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-matrix@2.0.1/dist/chartjs-chart-matrix.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@sgratzl/chartjs-chart-boxplot@4.4.4/build/index.umd.min.js"></script>
 
-    <!-- Marked.js (Markdown render) -->
     <script src="https://cdn.jsdelivr.net/npm/marked@12.0.0/marked.min.js"></script>
 
-    <!-- CSS -->
     {% load static %}
     <link rel="stylesheet" href="{% static 'css/dashboard.css' %}">
 
-    <!-- Shared chart renderer (43 ta tur) — ham widget, ham dashboard ishlatadi. -->
     <script src="{% static 'js/chart_render.js' %}"></script>
 
     <meta name="csrf-token" content="{{ csrf_token }}">
@@ -37,7 +29,7 @@
 </head>
 <body class="{% block body_class %}{% endblock %}">
     {% csrf_token %}
-    <!-- Sidebar Navigation -->
+    
     <aside class="sidebar" id="sidebar">
         <div class="sidebar-header">
             <div class="logo">
@@ -85,30 +77,13 @@
                 </svg>
                 <span>Kontaktlar</span>
             </a>
-            <!-- <a href="{% url 'dashboard:analytics' %}" class="nav-item {% if request.resolver_match.url_name == 'analytics' %}active{% endif %}" id="nav-analytics">
-                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M18 20V10"/>
-                    <path d="M12 20V4"/>
-                    <path d="M6 20v-6"/>
-                </svg>
-                <span>Tahlil</span>
-            </a> -->
+            
         </nav>
 
-        <!-- <div class="sidebar-footer">
-            <div class="user-info">
-                <div class="user-avatar">{{ user.first_name|default:"A"|first }}</div>
-                <div class="user-details">
-                    <span class="user-name">{{ user.get_full_name|default:user.username }}</span>
-                    <span class="user-role">Administrator</span>
-                </div>
-            </div>
-        </div> -->
     </aside>
 
-    <!-- Main Content -->
     <main class="main-content">
-        <!-- Top Bar -->
+        
         <header class="topbar">
             <button class="sidebar-toggle" id="sidebar-toggle">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -117,7 +92,7 @@
             </button>
             <div class="page-title">{% block page_title %}Dashboard{% endblock %}</div>
             <div class="topbar-actions">
-                <!-- CRM Source Filter -->
+                
                 <div class="crm-filter" id="crm-filter">
                     <button class="crm-filter-btn {% if current_source == 'all' or not current_source %}crm-active{% endif %}"
                             onclick="setCrmSource('')" title="Barcha CRM">
@@ -159,7 +134,6 @@
             </div>
         </header>
 
-        <!-- Page Content -->
         <div class="page-content">
             {% if messages %}
             <div class="messages-container">
@@ -176,26 +150,19 @@
         </div>
     </main>
 
-    <!-- Theme + CRM source init (before other scripts to prevent flash) -->
     <script>
         (function() {
             const saved = localStorage.getItem('theme') || 'dark';
             document.documentElement.setAttribute('data-theme', saved);
         })();
 
-        /**
-         * CRM Source Filter — localStorage orqali barcha sahifalarda saqlash.
-         * source: '' | 'amocrm' | 'bitrix'
-         */
         function setCrmSource(source) {
-            // localStorage ga saqlash — barcha sahifalarda ishlaydi
             if (source) {
                 localStorage.setItem('crmSource', source);
             } else {
                 localStorage.removeItem('crmSource');
             }
 
-            // Joriy sahifani source bilan qayta yuklash
             const url = new URL(window.location.href);
             if (source) {
                 url.searchParams.set('source', source);
@@ -205,21 +172,17 @@
             window.location.href = url.toString();
         }
 
-        // CRM source ni aniqlash: URL param > localStorage
         window.__crmSource = (function() {
             const params = new URLSearchParams(window.location.search);
             const urlSource = params.get('source');
 
             if (urlSource) {
-                // URL da source bor — localStorage ni ham yangilash
                 localStorage.setItem('crmSource', urlSource);
                 return urlSource;
             }
 
-            // URL da source yo'q — localStorage dan o'qish
             const savedSource = localStorage.getItem('crmSource');
             if (savedSource) {
-                // URL ni yangilash (reload qilmasdan, faqat URL ko'rinishini o'zgartirish)
                 const url = new URL(window.location.href);
                 url.searchParams.set('source', savedSource);
                 history.replaceState(null, '', url.toString());
@@ -229,11 +192,9 @@
             return '';
         })();
 
-        // Sidebar nav linklarini source bilan yangilash
         document.addEventListener('DOMContentLoaded', function() {
             const source = window.__crmSource;
             
-            // Sidebar nav linklarni yangilash
             document.querySelectorAll('.sidebar-nav .nav-item').forEach(function(link) {
                 if (source) {
                     const url = new URL(link.href, window.location.origin);
@@ -242,7 +203,6 @@
                 }
             });
 
-            // CRM filter buttonlarni yangilash (JS orqali — Django template vars ga bog'liq emas)
             const crmBtns = document.querySelectorAll('.crm-filter-btn');
             crmBtns.forEach(function(btn) {
                 btn.classList.remove('crm-active');
@@ -253,11 +213,9 @@
             } else if (source === 'bitrix') {
                 document.querySelector('.crm-btn-btx')?.classList.add('crm-active');
             } else {
-                // Barchasi — birinchi button
                 if (crmBtns.length > 0) crmBtns[0].classList.add('crm-active');
             }
 
-            // Page title dagi CRM stats barlarni ham yangilash
             document.querySelectorAll('.crm-stats-bar .crm-stat-badge').forEach(function(badge) {
                 badge.classList.remove('crm-active');
                 const href = badge.getAttribute('href');
@@ -267,19 +225,16 @@
                     badge.classList.add('crm-active');
                 }
 
-                // Link ni ham source bilan yangilash
                 if (badge.tagName === 'A' && badge.href) {
-                    // Keep the badge's own source param as-is (it sets the source)
                 }
             });
         });
     </script>
-    <!-- Scripts -->
+    
     <script src="{% static 'js/api.js' %}"></script>
     <script src="{% static 'js/dashboard.js' %}"></script>
     {% block extra_scripts %}{% endblock %}
 
-    <!-- Floating AI chat widget (Shadow DOM — barcha sahifalarda mavjud) -->
     <div id="ai-chat-widget"></div>
     <script src="{% static 'js/ai_chat_widget.js' %}"></script>
 </body>

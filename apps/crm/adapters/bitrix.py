@@ -1,17 +1,3 @@
-"""
-Bitrix24 Adapter — Bitrix24 REST API (webhook) orqali CRUD va ma'lumot olish.
-
-Bitrix24 webhook URL: https://yourcompany.bitrix24.ru/rest/{user_id}/{token}/
-Barcha so'rovlar shu URL orqali POST method bilan yuboriladi.
-
-Bitrix24 entitylari:
-  - crm.lead  — Leadlar (dastlabki murojaat)
-  - crm.deal  — Deallar (bitimlar)
-  - crm.contact — Kontaktlar
-
-Bu adapterda "lead" sifatida Bitrix24 Deal ishlatiladi (AmoCRM ga mos keladi).
-Bitrix24 Lead (dastlabki murojaat) alohida sync qilinadi.
-"""
 import logging
 
 import requests
@@ -21,20 +7,13 @@ from ..base import BaseCRMAdapter
 
 logger = logging.getLogger(__name__)
 
-
 class Bitrix24Adapter(BaseCRMAdapter):
-    """Bitrix24 REST API adapter (webhook orqali)."""
 
     @property
     def base_url(self):
         return settings.BITRIX_WEBHOOK_URL.rstrip("/")
 
-    # -------------------------------------------------------------------------
-    # Umumiy API chaqiruv
-    # -------------------------------------------------------------------------
-
     def _call(self, method: str, params: dict = None) -> dict:
-        """Bitrix24 REST API ga so'rov yuborish."""
         url = f"{self.base_url}/{method}"
         try:
             resp = requests.post(url, json=params or {}, timeout=30)
@@ -54,13 +33,8 @@ class Bitrix24Adapter(BaseCRMAdapter):
 
     def _list_all(self, method: str, params: dict = None,
                   page: int = 1, limit: int = 50) -> dict:
-        """Bitrix24 list endpointlardan ma'lumot olish (pagination bilan).
-
-        Bitrix24 pagination: start = (page - 1) * limit
-        """
         request_params = params or {}
         request_params["start"] = (page - 1) * limit
-        # order bo'yicha tartiblash
         request_params.setdefault("order", {"ID": "DESC"})
 
         resp = requests.post(
@@ -85,12 +59,7 @@ class Bitrix24Adapter(BaseCRMAdapter):
             "has_more": next_start is not None,
         }
 
-    # -------------------------------------------------------------------------
-    # Lead CRUD (Bitrix24 Deal sifatida — AmoCRM Lead ga mos)
-    # -------------------------------------------------------------------------
-
     def create_lead(self, data: dict) -> dict:
-        """Bitrix24 da deal yaratish (AmoCRM lead ekvivalenti)."""
         fields = {
             "TITLE":       data.get("name", "Yangi deal"),
             "OPPORTUNITY": str(data.get("price", 0)),
@@ -98,7 +67,6 @@ class Bitrix24Adapter(BaseCRMAdapter):
             "CATEGORY_ID": data.get("pipeline_id", 0),
             "STAGE_ID":    data.get("stage_id", "NEW"),
         }
-        # Qo'shimcha maydonlar
         if data.get("responsible_user_id"):
             fields["ASSIGNED_BY_ID"] = data["responsible_user_id"]
 
@@ -106,7 +74,6 @@ class Bitrix24Adapter(BaseCRMAdapter):
         return {"crm_id": result, "raw": {"id": result, **fields}}
 
     def update_lead(self, crm_id: int, data: dict) -> dict:
-        """Bitrix24 deal yangilash."""
         fields = {}
         if "name"     in data: fields["TITLE"]       = data["name"]
         if "price"    in data: fields["OPPORTUNITY"]  = str(data["price"])
@@ -118,16 +85,10 @@ class Bitrix24Adapter(BaseCRMAdapter):
         return {"id": crm_id}
 
     def delete_lead(self, crm_id: int) -> bool:
-        """Bitrix24 deal o'chirish."""
         self._call("crm.deal.delete", {"id": crm_id})
         return True
 
-    # -------------------------------------------------------------------------
-    # Contact CRUD
-    # -------------------------------------------------------------------------
-
     def create_contact(self, data: dict) -> dict:
-        """Bitrix24 da kontakt yaratish."""
         parts = data.get("name", "").split(" ", 1)
         fields = {
             "NAME":      parts[0],
@@ -146,7 +107,6 @@ class Bitrix24Adapter(BaseCRMAdapter):
         return {"crm_id": result, "raw": {"id": result, **fields}}
 
     def update_contact(self, crm_id: int, data: dict) -> dict:
-        """Bitrix24 kontakt yangilash."""
         fields = {}
         if "name" in data:
             parts = data["name"].split(" ", 1)
@@ -161,16 +121,10 @@ class Bitrix24Adapter(BaseCRMAdapter):
         return {"id": crm_id}
 
     def delete_contact(self, crm_id: int) -> bool:
-        """Bitrix24 kontakt o'chirish."""
         self._call("crm.contact.delete", {"id": crm_id})
         return True
 
-    # -------------------------------------------------------------------------
-    # Data fetching (sync uchun)
-    # -------------------------------------------------------------------------
-
     def get_leads(self, page: int = 1, limit: int = 50) -> dict:
-        """Bitrix24 dan deallarni olish (pagination bilan)."""
         data = self._list_all("crm.deal.list", params={
             "select": [
                 "ID", "TITLE", "OPPORTUNITY", "CURRENCY_ID",
@@ -180,7 +134,6 @@ class Bitrix24Adapter(BaseCRMAdapter):
             ],
         }, page=page, limit=limit)
 
-        # Normalizatsiya — har bir item ni unified format ga o'tkazish
         normalized = []
         for item in data["items"]:
             normalized.append({
@@ -206,10 +159,6 @@ class Bitrix24Adapter(BaseCRMAdapter):
         }
 
     def get_bitrix_leads(self, page: int = 1, limit: int = 50) -> dict:
-        """Bitrix24 dan Leadlarni (dastlabki murojaatlar) olish.
-
-        Bu AmoCRM da yo'q — faqat Bitrix24 ga xos entity.
-        """
         data = self._list_all("crm.lead.list", params={
             "select": [
                 "ID", "TITLE", "NAME", "LAST_NAME",
@@ -255,7 +204,6 @@ class Bitrix24Adapter(BaseCRMAdapter):
         }
 
     def get_contacts(self, page: int = 1, limit: int = 50) -> dict:
-        """Bitrix24 dan kontaktlarni olish."""
         data = self._list_all("crm.contact.list", params={
             "select": [
                 "ID", "NAME", "LAST_NAME", "SECOND_NAME",
@@ -303,16 +251,12 @@ class Bitrix24Adapter(BaseCRMAdapter):
         }
 
     def get_pipelines(self) -> list:
-        """Bitrix24 dan deal category (pipeline) va statuslarni olish."""
-        # Bitrix24 da deal pipeline = deal category
         categories = self._call("crm.dealcategory.list")
         if not isinstance(categories, list):
             categories = []
 
-        # Default pipeline (category_id = 0) har doim mavjud
         result = []
 
-        # Default category statuslari
         try:
             default_statuses = self._call("crm.dealcategory.stage.list", {
                 "id": 0,
@@ -341,7 +285,6 @@ class Bitrix24Adapter(BaseCRMAdapter):
             "raw": {},
         })
 
-        # Qo'shimcha categorylar
         for cat in categories:
             cat_id = cat.get("ID", 0)
             try:
@@ -375,7 +318,6 @@ class Bitrix24Adapter(BaseCRMAdapter):
         return result
 
     def get_users(self) -> list:
-        """Bitrix24 dan foydalanuvchilarni olish."""
         try:
             data = self._call("user.get", {
                 "ACTIVE": True,
@@ -398,12 +340,7 @@ class Bitrix24Adapter(BaseCRMAdapter):
             logger.error(f"Bitrix24 foydalanuvchilarni olishda xatolik: {e}")
             return []
 
-    # -------------------------------------------------------------------------
-    # Bitrix24 ga xos qo'shimcha metodlar
-    # -------------------------------------------------------------------------
-
     def create_bitrix_lead(self, data: dict) -> dict:
-        """Bitrix24 Lead (dastlabki murojaat) yaratish."""
         fields = {
             "TITLE": data.get("name", "Yangi lead"),
         }
@@ -422,7 +359,6 @@ class Bitrix24Adapter(BaseCRMAdapter):
         return {"crm_id": result, "raw": {"id": result, **fields}}
 
     def get_lead_statuses(self) -> list:
-        """Bitrix24 Lead statuslarini olish."""
         try:
             data = self._call("crm.status.list", {
                 "filter": {"ENTITY_ID": "STATUS"},

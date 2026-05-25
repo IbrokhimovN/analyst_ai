@@ -1,19 +1,13 @@
-"""
-Django base settings for AmoCRM AI Dashboard.
-"""
 import os
 from pathlib import Path
 
 import environ
 
-# Build paths
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
-# Environment
 env = environ.Env(
     DEBUG=(bool, False),
 )
-# .env faylni qidirish: avval loyiha root, keyin bir daraja yuqorida
 _env_file = os.path.join(BASE_DIR, '.env')
 if not os.path.exists(_env_file):
     _env_file = os.path.join(BASE_DIR.parent, '.env')
@@ -24,11 +18,6 @@ SECRET_KEY = env('SECRET_KEY')
 DEBUG = env.bool('DEBUG', default=False)
 ALLOWED_HOSTS = env.list('ALLOWED_HOSTS', default=['localhost', '127.0.0.1'])
 
-
-# =============================================================================
-# Application definition
-# =============================================================================
-
 INSTALLED_APPS = [
     'django.contrib.admin',
     'django.contrib.auth',
@@ -37,15 +26,13 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'django.contrib.humanize',
-    # Third party
     'rest_framework',
     'rest_framework_simplejwt',
     'corsheaders',
     'channels',
     'drf_spectacular',
     'django_filters',
-    # Local apps
-    'apps.crm',           # Unified CRM adapter (AmoCRM + Bitrix24)
+    'apps.crm',
     'apps.amocrm',
     'apps.analytics',
     'apps.ai_analyst',
@@ -85,11 +72,6 @@ TEMPLATES = [
 WSGI_APPLICATION = 'config.wsgi.application'
 ASGI_APPLICATION = 'config.asgi.application'
 
-
-# =============================================================================
-# Database
-# =============================================================================
-
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
@@ -101,11 +83,6 @@ DATABASES = {
     }
 }
 
-
-# =============================================================================
-# Password validation
-# =============================================================================
-
 AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
     {'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator'},
@@ -113,20 +90,10 @@ AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator'},
 ]
 
-
-# =============================================================================
-# Internationalization
-# =============================================================================
-
 LANGUAGE_CODE = 'uz'
 TIME_ZONE = 'Asia/Tashkent'
 USE_I18N = True
 USE_TZ = True
-
-
-# =============================================================================
-# Static & Media files
-# =============================================================================
 
 STATIC_URL = '/static/'
 STATICFILES_DIRS = [BASE_DIR / 'static']
@@ -135,22 +102,12 @@ STATIC_ROOT = BASE_DIR / 'staticfiles'
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
-
-# =============================================================================
-# Redis / Cache
-# =============================================================================
-
 CACHES = {
     'default': {
         'BACKEND': 'django.core.cache.backends.redis.RedisCache',
         'LOCATION': env('REDIS_URL'),
     }
 }
-
-
-# =============================================================================
-# Channels (WebSocket)
-# =============================================================================
 
 CHANNEL_LAYERS = {
     'default': {
@@ -160,11 +117,6 @@ CHANNEL_LAYERS = {
         },
     }
 }
-
-
-# =============================================================================
-# Celery
-# =============================================================================
 
 CELERY_BROKER_URL = env('CELERY_BROKER_URL')
 CELERY_RESULT_BACKEND = env('CELERY_RESULT_BACKEND')
@@ -176,18 +128,13 @@ CELERY_TIMEZONE = 'Asia/Tashkent'
 CELERY_BEAT_SCHEDULE = {
     'sync-amocrm-every-15min': {
         'task': 'apps.amocrm.tasks.sync_all',
-        'schedule': 900,  # 15 daqiqa
+        'schedule': 900,
     },
     'sync-bitrix-every-15min': {
         'task': 'apps.crm.tasks.sync_bitrix_all',
-        'schedule': 900,  # 15 daqiqa
+        'schedule': 900,
     },
 }
-
-
-# =============================================================================
-# Django REST Framework
-# =============================================================================
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
@@ -207,11 +154,6 @@ REST_FRAMEWORK = {
     'PAGE_SIZE': 50,
 }
 
-
-# =============================================================================
-# SimpleJWT
-# =============================================================================
-
 from datetime import timedelta
 
 SIMPLE_JWT = {
@@ -221,11 +163,6 @@ SIMPLE_JWT = {
     'BLACKLIST_AFTER_ROTATION': True,
 }
 
-
-# =============================================================================
-# drf-spectacular (Swagger)
-# =============================================================================
-
 SPECTACULAR_SETTINGS = {
     'TITLE': 'AmoCRM AI Dashboard API',
     'DESCRIPTION': 'AmoCRM ma\'lumotlarini AI bilan tahlil qiluvchi dashboard API',
@@ -233,75 +170,35 @@ SPECTACULAR_SETTINGS = {
     'SERVE_INCLUDE_SCHEMA': False,
 }
 
-
-# =============================================================================
-# AmoCRM
-# =============================================================================
-
 AMOCRM_DOMAIN = env('AMOCRM_DOMAIN')
 AMOCRM_CLIENT_ID = env('AMOCRM_CLIENT_ID')
 AMOCRM_CLIENT_SECRET = env('AMOCRM_CLIENT_SECRET')
 AMOCRM_REDIRECT_URI = env('AMOCRM_REDIRECT_URI', default='http://localhost:8000/amocrm/callback/')
 
-
-# =============================================================================
-# Bitrix24
-# =============================================================================
-
 BITRIX_WEBHOOK_URL = env('BITRIX_WEBHOOK_URL', default='')
-
-
-# =============================================================================
-# CRM sozlama — 'amocrm' yoki 'bitrix'
-# =============================================================================
 
 DEFAULT_CRM = env('DEFAULT_CRM', default='amocrm')
 
-
-# =============================================================================
-# Anthropic Claude AI
-# =============================================================================
-
 ANTHROPIC_API_KEY = env('ANTHROPIC_API_KEY')
 
-
-# =============================================================================
-# LangChain — RAG, Agent, Memory
-# =============================================================================
-
-# RAG va Agent uchun ishlatiladigan Claude modeli
 LANGCHAIN_CLAUDE_MODEL = env('LANGCHAIN_CLAUDE_MODEL', default='claude-sonnet-4-6')
 
-# Embedding provayderi: 'fastembed' (lokal, ONNX) | 'huggingface' | 'openai'
 EMBEDDINGS_PROVIDER = env('EMBEDDINGS_PROVIDER', default='fastembed')
 
-# Embedding modeli — fastembed/huggingface uchun. Ko'p tilli (uz/ru) model.
 EMBEDDINGS_MODEL = env(
     'EMBEDDINGS_MODEL',
     default='sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2',
 )
 
-# OpenAI embeddings ishlatilganda kerak bo'ladi
 OPENAI_API_KEY = env('OPENAI_API_KEY', default='')
 
-# FAISS lokal vektor ombori va RAG hujjatlari uchun papkalar
 FAISS_INDEX_DIR = MEDIA_ROOT / 'faiss_index'
 RAG_UPLOAD_DIR = MEDIA_ROOT / 'rag_docs'
-
-
-# =============================================================================
-# CORS
-# =============================================================================
 
 CORS_ALLOW_ALL_ORIGINS = DEBUG
 CORS_ALLOWED_ORIGINS = env.list('CORS_ALLOWED_ORIGINS', default=[
     'http://localhost:3000',
     'http://localhost:8000',
 ])
-
-
-# =============================================================================
-# Default primary key
-# =============================================================================
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'

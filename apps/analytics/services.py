@@ -10,34 +10,16 @@ from apps.amocrm.models import Lead, Pipeline, PipelineStatus
 
 logger = logging.getLogger(__name__)
 
-# AmoCRM yutilgan/yutqazilgan status ID lari (standart)
-WON_STATUS_ID = 142  # Muvaffaqiyatli yakunlangan
-LOST_STATUS_ID = 143  # Yutqazilgan
-
+WON_STATUS_ID = 142
+LOST_STATUS_ID = 143
 
 class AnalyticsService:
-    """Sotuv tahlillari va statistika hisoblash servisi.
 
-    Barcha methodlar ixtiyoriy `source` parametrini qabul qiladi:
-      - None  → barcha CRM lardan
-      - 'amocrm' → faqat AmoCRM
-      - 'bitrix' → faqat Bitrix24
-    """
-
-    # Davr (period) → necha kunlik oraliq. None/'all' → cheksiz (barcha vaqt).
     PERIOD_DAYS = {'day': 1, 'week': 7, 'month': 30}
 
-    # Maxsus sana oralig'i formati: "range:YYYY-MM-DD:YYYY-MM-DD".
     _RANGE_RE = re.compile(r'^range:(\d{4}-\d{2}-\d{2}):(\d{4}-\d{2}-\d{2})$')
 
     def _parse_period(self, period):
-        """``period`` satrini filtr tavsifiga aylantiradi.
-
-        Qaytaradi:
-          * ``None``               — barcha vaqt (filtr yo'q);
-          * ``('days', N)``        — oxirgi N kun;
-          * ``('range', d1, d2)``  — aniq sana oralig'i (``date`` obyektlari).
-        """
         if not period:
             return None
         days = self.PERIOD_DAYS.get(period)
@@ -50,18 +32,12 @@ class AnalyticsService:
                 d2 = date.fromisoformat(match.group(2))
             except ValueError:
                 return None
-            if d1 > d2:                      # tartibni to'g'rilaymiz
+            if d1 > d2:
                 d1, d2 = d2, d1
             return ('range', d1, d2)
         return None
 
     def _base_queryset(self, source=None, period=None):
-        """Asosiy queryset — source va davr (period) filtri bilan.
-
-        period: 'day' | 'week' | 'month' | None('all') yoki maxsus sana
-        oralig'i "range:YYYY-MM-DD:YYYY-MM-DD". None bo'lsa barcha vaqt,
-        aks holda created_at shu davr bilan cheklanadi.
-        """
         qs = Lead.objects.all()
         if source:
             qs = qs.filter(source=source)
@@ -75,16 +51,6 @@ class AnalyticsService:
         return qs
 
     def _status_buckets(self):
-        """Pipeline statuslarini 3 guruhga bo'lish (voronka bosqichlari uchun).
-
-        Status semantikasi (Call/Conversation) ma'lumotlar bazasida alohida
-        saqlanmaydi, shuning uchun haqiqiy pipeline statuslari sort tartibida
-        guruhlanadi:
-          - incoming    → birinchi (kiruvchi) bosqich, hali aloqa qilinmagan
-          - negotiating → oxirgi (muzokara) bosqich, sotuvga yaqin
-
-        Returns: (incoming_status_ids, negotiating_status_ids)
-        """
         statuses = list(
             PipelineStatus.objects
             .exclude(amocrm_id__in=[WON_STATUS_ID, LOST_STATUS_ID])
@@ -98,7 +64,6 @@ class AnalyticsService:
         return statuses[:cut], statuses[-cut:]
 
     def get_summary(self, days=30, source=None, period=None):
-        """Umumiy statistikani olish."""
         start_date = timezone.now() - timedelta(days=days)
         leads = self._base_queryset(source, period)
         recent_leads = leads.filter(created_at__gte=start_date)
@@ -142,12 +107,10 @@ class AnalyticsService:
         }
 
     def get_funnel(self, pipeline_id=None, source=None):
-        """Sotuv funnel (voronka) ma'lumotlarini olish."""
         leads = self._base_queryset(source)
         if pipeline_id:
             leads = leads.filter(pipeline_id=pipeline_id)
 
-        # Pipeline statuslari bo'yicha guruhlamoq
         pipeline_filter = {}
         if pipeline_id:
             pipeline_filter['pipeline__amocrm_id'] = pipeline_id
@@ -172,7 +135,6 @@ class AnalyticsService:
         return funnel_data
 
     def get_by_manager(self, days=30, source=None, period=None):
-        """Menejer bo'yicha statistika."""
         start_date = timezone.now() - timedelta(days=days)
 
         from apps.amocrm.models import User as AmoCRMUser
@@ -199,8 +161,6 @@ class AnalyticsService:
             if closed > 0:
                 conversion = (won / closed) * 100
 
-            # Voronka bosqichlari — kiruvchi statusdan o'tganlar "Call",
-            # muzokara bosqichi + yutilganlar "Conversation"
             in_incoming = (
                 manager_leads.filter(status_id__in=incoming_ids).count()
                 if incoming_ids else 0
@@ -230,12 +190,10 @@ class AnalyticsService:
                 'lead_to_sale': lead_to_sale,
             })
 
-        # Revenue bo'yicha tartiblash
         result.sort(key=lambda x: x['revenue'], reverse=True)
         return result
 
     def get_leads_trend(self, days=30, source=None):
-        """Kunlik lead dinamikasi."""
         start_date = timezone.now() - timedelta(days=days)
 
         from django.db.models.functions import TruncDate
@@ -256,7 +214,6 @@ class AnalyticsService:
         ]
 
     def get_revenue_trend(self, days=30, source=None):
-        """Kunlik tushum dinamikasi."""
         start_date = timezone.now() - timedelta(days=days)
 
         from django.db.models.functions import TruncDate
@@ -286,21 +243,10 @@ class AnalyticsService:
         ]
 
     def get_top_managers(self, limit=5, source=None, period=None):
-        """Eng yaxshi menejerlar (tushum bo'yicha)."""
         managers = self.get_by_manager(source=source, period=period)
         return managers[:limit]
 
-    # ------------------------------------------------------------------
-    # Dashboard uchun qo'shimcha tahlillar
-    # ------------------------------------------------------------------
-
     def get_sales_funnel(self, source=None, period=None):
-        """4-bosqichli umumlashtirilgan sotuv voronkasi.
-
-        Bosqichlar: Lid → Call → Conversation → Sotuv.
-        Call/Conversation alohida kuzatilmaydi, shuning uchun pipeline
-        statuslari _status_buckets() orqali guruhlanadi.
-        """
         leads = self._base_queryset(source, period)
         total = leads.count()
         won = leads.filter(status_id=WON_STATUS_ID).count()
@@ -323,7 +269,6 @@ class AnalyticsService:
         return stages
 
     def get_conversions(self, source=None, period=None):
-        """Asosiy konversiya nisbatlari (voronka bosqichlari orasidagi)."""
         funnel = {s['name']: s['count'] for s in self.get_sales_funnel(source, period)}
         lid = funnel.get('Lid', 0)
         call = funnel.get('Call', 0)
@@ -343,16 +288,10 @@ class AnalyticsService:
         ]
 
     def get_loss_reasons(self, source=None, limit=5, period=None):
-        """Yutqazish sabablari — eng ko'p uchragan loss_reason qiymatlari.
-
-        Agar CRM da loss_reason kiritilmagan bo'lsa, yutqazilgan lidlar
-        pipeline + menejer bo'yicha guruhlanib ko'rsatiladi.
-        """
         all_lost = self._base_queryset(source, period).filter(
             status_id=LOST_STATUS_ID
         )
 
-        # 1. Avval haqiqiy loss_reason maydoni bo'yicha guruhlash
         with_reason = all_lost.exclude(loss_reason='').exclude(
             loss_reason__isnull=True
         )
@@ -365,8 +304,6 @@ class AnalyticsService:
             return [{'reason': r['loss_reason'], 'count': r['count']}
                     for r in rows]
 
-        # 2. Fallback — pipeline + menejer bo'yicha guruhlash
-        #    (pipeline va menejer nomlarini birlashtiradi)
         from apps.amocrm.models import User as AmoCRMUser
 
         combo_rows = list(
@@ -390,7 +327,6 @@ class AnalyticsService:
                 'count': r['count'],
             } for r in combo_rows]
 
-        # 3. Fallback — faqat menejer bo'yicha
         manager_rows = list(
             all_lost.values('responsible_user_id')
             .annotate(count=Count('id'))
@@ -409,14 +345,12 @@ class AnalyticsService:
                 'count': r['count'],
             } for r in manager_rows]
 
-        # 4. Hech narsa yo'q
         total_lost = all_lost.count()
         if total_lost:
             return [{'reason': 'Sabab ko\'rsatilmagan', 'count': total_lost}]
         return []
 
     def get_best_days(self, source=None, limit=3, period=None):
-        """Hafta kunlari bo'yicha eng samarali kunlar."""
         from django.db.models.functions import ExtractIsoWeekDay
 
         names = {
@@ -446,7 +380,6 @@ class AnalyticsService:
         return result[:limit]
 
     def get_finance(self, source=None, period=None):
-        """Moliyaviy ko'rsatkichlar — dashboard kartasi uchun."""
         summary = self.get_summary(source=source, period=period)
         total_leads = summary['total_leads']
         won = summary['won_count']
@@ -459,18 +392,12 @@ class AnalyticsService:
         }
 
     def get_daily_dynamics(self, days=7, source=None, date_from=None, date_to=None):
-        """Kunlik dinamika — har kun uchun lid, sotuv va konversiya.
-
-        ``date_from``/``date_to`` berilsa (maxsus sana oralig'i tanlangan),
-        aynan shu oraliq kun-bakun ko'rsatiladi. Aks holda bugundan
-        orqaga ``days`` kunlik oyna ishlatiladi.
-        """
         from django.db.models.functions import TruncDate
 
         if date_from and date_to:
             start, end = date_from, date_to
             span = (end - start).days + 1
-            if span > 92:                    # juda uzun oraliqni cheklaymiz
+            if span > 92:
                 start = end - timedelta(days=91)
                 span = 92
         else:
@@ -510,14 +437,12 @@ class AnalyticsService:
         return result
 
     def get_insights(self, source=None, period=None):
-        """Avtomatik qisqa tahliliy xulosalar (Insight paneli uchun)."""
         funnel = {s['name']: s for s in self.get_sales_funnel(source, period)}
         conv = self.get_conversions(source, period)
         managers = self.get_by_manager(source=source, period=period)
 
         insights = []
 
-        # Eng kuchli bosqich
         strong = max(funnel.values(), key=lambda s: s['pct']) if funnel else None
         if strong:
             insights.append({
@@ -526,7 +451,6 @@ class AnalyticsService:
                 'text': f"{strong['name']} bosqichi — {strong['pct']}% ushlab qolish",
             })
 
-        # Eng katta yo'qotish (bosqichlar orasida pct tushishi)
         if conv:
             weakest = min(conv, key=lambda c: c['pct'])
             insights.append({
@@ -535,7 +459,6 @@ class AnalyticsService:
                 'text': f"{weakest['label']} — atigi {weakest['pct']}%, e'tibor talab",
             })
 
-        # O'rtacha sotuvchi konversiyasi
         if managers:
             avg_conv = round(
                 sum(m['conversion_rate'] for m in managers) / len(managers), 1
@@ -546,7 +469,6 @@ class AnalyticsService:
                 'text': f"O'rtacha {avg_conv}% — yaxshilash imkoniyati bor",
             })
 
-        # Yashirin imkoniyat — yutqazilgan baza
         summary = self.get_summary(source=source)
         if summary['lost_count']:
             insights.append({
@@ -555,7 +477,6 @@ class AnalyticsService:
                 'text': f"{summary['lost_count']} ta yutqazilgan lid — qayta jalb qiling",
             })
 
-        # Doimiy tavsiya
         insights.append({
             'type': 'tip',
             'title': 'Tavsiya',

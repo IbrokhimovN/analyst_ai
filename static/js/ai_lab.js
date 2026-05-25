@@ -1,16 +1,6 @@
-/**
- * ai_lab.js — AI Tahlilchi sahifasi (LangChain RAG + Agent + Memory).
- *
- * Funksiyalar:
- *   - RAG:    PDF/Excel hujjat yuklash, ro'yxat, o'chirish.
- *   - Chat:   hujjatlar asosida (yoki oddiy) savol-javob.
- *   - Memory: tanlangan menejer bo'yicha suhbat tarixi yuklanadi/saqlanadi.
- *   - Agent:  bitta tugma bilan dashboard'ni avtomatik tahlil qildirish.
- */
 (function () {
     'use strict';
 
-    // ===== API endpointlari =====
     var API = {
         managers:  '/api/v1/ai/managers/',
         documents: '/api/v1/ai/rag/documents/',
@@ -20,7 +10,6 @@
         agent:     '/api/v1/ai/agent/analyze/',
     };
 
-    // ===== DOM elementlari =====
     var elMessages   = document.getElementById('chat-messages');
     var elInput      = document.getElementById('chat-input');
     var elSend       = document.getElementById('chat-send-btn');
@@ -30,12 +19,10 @@
     var elUpload     = document.getElementById('ailab-upload');
     var elDocList    = document.getElementById('ailab-doc-list');
 
-    // CSRF token (base.html dagi meta tegidan)
     var CSRF = (document.querySelector('meta[name="csrf-token"]') || {}).content || '';
 
     var busy = false;
 
-    // ===== Yordamchi: markdown -> HTML =====
     function render(text) {
         if (typeof marked !== 'undefined') {
             return marked.parse(text || '');
@@ -43,7 +30,6 @@
         return (text || '').replace(/\n/g, '<br>');
     }
 
-    // ===== Yordamchi: chatga xabar qo'shish =====
     function addMessage(role, html, opts) {
         opts = opts || {};
         var wrap = document.createElement('div');
@@ -73,7 +59,6 @@
         return bubble;
     }
 
-    // ===== Menejerlar ro'yxatini yuklash =====
     function loadManagers() {
         fetch(API.managers)
             .then(function (r) { return r.json(); })
@@ -85,13 +70,11 @@
                     elManager.appendChild(opt);
                 });
             })
-            .catch(function () { /* menejer yo'q — umumiy suhbat qoladi */ });
+            .catch(function () {  });
     }
 
-    // ===== Tanlangan menejer suhbat tarixini yuklash =====
     function loadHistory() {
         var managerId = elManager.value || '0';
-        // Boshlang'ich xush kelibsiz xabaridan keyingilarini tozalaymiz
         var welcome = elMessages.querySelector('.chat-message');
         elMessages.innerHTML = '';
         if (welcome) { elMessages.appendChild(welcome); }
@@ -107,7 +90,6 @@
             .catch(function () {});
     }
 
-    // ===== Hujjatlar ro'yxatini yuklash =====
     function loadDocuments() {
         fetch(API.documents)
             .then(function (r) { return r.json(); })
@@ -145,7 +127,6 @@
         return 'qayta ishlanmoqda';
     }
 
-    // ===== Hujjat yuklash =====
     function uploadFile(file) {
         if (!file || busy) { return; }
         busy = true;
@@ -179,7 +160,6 @@
             });
     }
 
-    // ===== Hujjatni o'chirish =====
     function deleteDocument(id) {
         if (!confirm('Hujjat o\'chirilsinmi? Vektor indeksi qayta quriladi.')) { return; }
         fetch(API.documents + id + '/', {
@@ -190,7 +170,6 @@
             .catch(function () {});
     }
 
-    // ===== Savol yuborish (RAG + Memory) =====
     function sendMessage() {
         var text = (elInput.value || '').trim();
         if (!text || busy) { return; }
@@ -225,7 +204,6 @@
             });
     }
 
-    // ===== Agent tahlil =====
     function runAgent() {
         if (busy) { return; }
         busy = true;
@@ -264,7 +242,6 @@
             });
     }
 
-    // ===== Hodisalar (event listeners) =====
     elSend.addEventListener('click', sendMessage);
     elInput.addEventListener('keydown', function (e) {
         if (e.key === 'Enter' && !e.shiftKey) {
@@ -284,7 +261,6 @@
         if (elFile.files.length) { uploadFile(elFile.files[0]); }
     });
 
-    // Drag & drop yuklash
     ['dragenter', 'dragover'].forEach(function (ev) {
         elUpload.addEventListener(ev, function (e) {
             e.preventDefault();
@@ -301,7 +277,6 @@
         if (e.dataTransfer.files.length) { uploadFile(e.dataTransfer.files[0]); }
     });
 
-    // ===== Boshlash =====
     loadManagers();
     loadDocuments();
 })();

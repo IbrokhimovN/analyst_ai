@@ -1,16 +1,5 @@
-"""
-Bitrix24 ma'lumotlarini sinxronlash management command.
-
-Foydalanish:
-    python manage.py sync_bitrix            # Barcha ma'lumotlarni sinxronlash
-    python manage.py sync_bitrix --deals    # Faqat deallarni
-    python manage.py sync_bitrix --contacts # Faqat kontaktlarni
-    python manage.py sync_bitrix --leads    # Faqat Bitrix leadlarni
-    python manage.py sync_bitrix --pipelines # Faqat pipelinelarni
-"""
 from django.core.management.base import BaseCommand
 from django.conf import settings
-
 
 class Command(BaseCommand):
     help = 'Bitrix24 dan ma\'lumotlarni sinxronlash'
@@ -53,7 +42,6 @@ class Command(BaseCommand):
             self._run_sync(options, specific)
 
     def _run_async(self, options, specific):
-        """Celery task orqali asinxron ishga tushirish."""
         from apps.crm.tasks import (
             sync_bitrix_deals, sync_bitrix_contacts,
             sync_bitrix_leads, sync_bitrix_pipelines,
@@ -81,7 +69,6 @@ class Command(BaseCommand):
         self.stdout.write(self.style.SUCCESS("Tasklar yuborildi"))
 
     def _run_sync(self, options, specific):
-        """Sinxron (to'g'ridan-to'g'ri) ishga tushirish."""
         from apps.crm.tasks import (
             sync_bitrix_deals, sync_bitrix_contacts,
             sync_bitrix_leads, sync_bitrix_pipelines,

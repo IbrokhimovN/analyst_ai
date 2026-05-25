@@ -7,19 +7,12 @@ from django.core.cache import cache
 
 logger = logging.getLogger(__name__)
 
-
 class AmoCRMService:
-    """AmoCRM API bilan ishlash servisi."""
 
     BASE_URL = f"https://{settings.AMOCRM_DOMAIN}"
     TOKEN_CACHE_KEY = "amocrm_access_token"
 
-    # -------------------------------------------------------------------------
-    # Token boshqaruvi
-    # -------------------------------------------------------------------------
-
     def get_token(self):
-        """Access tokenni cache yoki DB dan olish, kerak bo'lsa yangilash."""
         token = cache.get(self.TOKEN_CACHE_KEY)
         if token:
             return token
@@ -56,21 +49,14 @@ class AmoCRMService:
         return {"Authorization": f"Bearer {self.get_token()}"}
 
     def _get(self, endpoint, params=None):
-        """GET request wrapper with error handling."""
         url = f"{self.BASE_URL}{endpoint}"
         resp = requests.get(url, headers=self._headers(), params=params, timeout=30)
         resp.raise_for_status()
-        # AmoCRM 204 No Content qaytaradi — ma'lumot bo'lmaganda
         if resp.status_code == 204 or not resp.text.strip():
             return {}
         return resp.json()
 
-    # -------------------------------------------------------------------------
-    # Ma'lumotlarni olish
-    # -------------------------------------------------------------------------
-
     def get_leads(self, page=1, limit=250):
-        """Leadlar ro'yxatini olish."""
         return self._get("/api/v4/leads", params={
             "page": page,
             "limit": limit,
@@ -78,32 +64,23 @@ class AmoCRMService:
         })
 
     def get_contacts(self, page=1, limit=250):
-        """Kontaktlar ro'yxatini olish."""
         return self._get("/api/v4/contacts", params={
             "page": page,
             "limit": limit,
         })
 
     def get_pipelines(self):
-        """Barcha pipelinelarni olish."""
         return self._get("/api/v4/leads/pipelines")
 
     def get_users(self):
-        """AmoCRM foydalanuvchilarini olish."""
         return self._get("/api/v4/users")
 
     def get_lead_detail(self, lead_id):
-        """Bitta leadning batafsil ma'lumotlarini olish."""
         return self._get(f"/api/v4/leads/{lead_id}", params={
             "with": "contacts,loss_reason,catalog_elements",
         })
 
-    # -------------------------------------------------------------------------
-    # OAuth
-    # -------------------------------------------------------------------------
-
     def exchange_code(self, code):
-        """OAuth authorization code ni token ga almashtirish."""
         payload = {
             "client_id": settings.AMOCRM_CLIENT_ID,
             "client_secret": settings.AMOCRM_CLIENT_SECRET,

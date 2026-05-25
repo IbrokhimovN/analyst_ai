@@ -9,16 +9,13 @@ logger = logging.getLogger(__name__)
 
 _client = None
 
-
 def get_client():
-    """Lazy initialization for Anthropic client."""
     global _client
     if _client is None:
         _client = anthropic.Anthropic(api_key=settings.ANTHROPIC_API_KEY)
     return _client
 
 def get_system_prompt(source=None):
-    """Dynamic system prompt based on selected CRM source."""
     crm_name = "CRM (AmoCRM va Bitrix24)"
     if source == 'amocrm':
         crm_name = "AmoCRM"
@@ -36,9 +33,7 @@ Sizning vazifalaringiz:
 4. Ma'lumotlarga asoslangan xulosalar chiqarish
 """
 
-
 def get_context_data(source=None):
-    """AI uchun joriy ma'lumotlar kontekstini tayyorlash."""
     service = AnalyticsService()
     summary = service.get_summary(source=source)
     top_managers = service.get_top_managers(source=source)
@@ -48,9 +43,7 @@ def get_context_data(source=None):
         'top_managers': top_managers,
     }
 
-
 def analyze_data(question: str, context_data: dict = None, source: str = None) -> str:
-    """Foydalanuvchi savolini ma'lumotlar bilan birga Claude ga yuborish."""
     if context_data is None:
         context_data = get_context_data(source=source)
     else:
@@ -86,9 +79,7 @@ def analyze_data(question: str, context_data: dict = None, source: str = None) -
         logger.error(f"AI tahlilida xatolik: {e}")
         return f"AI tahlilida xatolik yuz berdi: {str(e)}"
 
-
 def generate_weekly_report(stats: dict = None, source: str = None) -> str:
-    """Haftalik avtomatik hisobot generatsiya."""
     if stats is None:
         stats = get_context_data(source=source)
     else:
@@ -114,9 +105,7 @@ def generate_weekly_report(stats: dict = None, source: str = None) -> str:
         logger.error(f"Haftalik hisobot generatsiyasida xatolik: {e}")
         return f"Hisobot generatsiyasida xatolik: {str(e)}"
 
-
 def stream_analyze(question: str, context_data: dict = None, source: str = None):
-    """Streaming rejimda tahlil (WebSocket uchun)."""
     if context_data is None:
         context_data = get_context_data(source=source)
     else:

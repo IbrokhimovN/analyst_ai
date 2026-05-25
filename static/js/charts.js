@@ -1,6 +1,3 @@
-/**
- * Charts — Chart.js yordamida grafik funksiyalari.
- */
 
 const chartDefaults = {
     responsive: true,

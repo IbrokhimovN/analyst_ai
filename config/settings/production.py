@@ -1,11 +1,7 @@
-"""
-Production settings.
-"""
-from .base import *  # noqa: F401, F403
+from .base import *
 
 DEBUG = False
 
-# Security
 SECURE_BROWSER_XSS_FILTER = True
 SECURE_CONTENT_TYPE_NOSNIFF = True
 SESSION_COOKIE_SECURE = True
@@ -15,7 +11,6 @@ SECURE_HSTS_SECONDS = 31536000
 SECURE_HSTS_INCLUDE_SUBDOMAINS = True
 SECURE_HSTS_PRELOAD = True
 
-# Logging
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
@@ -43,6 +38,5 @@ LOGGING = {
     },
 }
 
-# Static files
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 

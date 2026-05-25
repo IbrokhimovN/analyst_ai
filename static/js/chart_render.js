@@ -1,18 +1,3 @@
-/**
- * chart_render.js — 43 ta canonical chart turi uchun yagona renderer.
- *
- * Ham AI chat widget (Shadow DOM ichida), ham asosiy dashboard kartalari
- * shu modulni chaqiradi. `window.AIChartRender.renderInto(targetEl, spec)`
- * deb chaqiriladi. Inline style ishlatadi — CSS class bog'liqligi yo'q.
- *
- * Spec sxemasi (backend `_build_chat_chart_spec` qaytaradigan):
- *   {
- *     card, card_label, viewType, metric, metrics,
- *     labels: string[],
- *     datasets: [{label, metric, data: number[]}],
- *     title, sortBy, sortDir, limit
- *   }
- */
 (function (root) {
     'use strict';
 
@@ -53,13 +38,7 @@
         return (d0.data || []).map(Number);
     }
 
-    // -----------------------------------------------------------------------
-    // CHART_TYPE_MAP — 43 ta canonical tur + aliaslar uchun konfiguratsiya.
-    // `customRenderer` belgilangan turlar Chart.js o'rniga maxsus
-    // canvas/SVG funktsiyasi tomonidan chiziladi.
-    // -----------------------------------------------------------------------
     var CHART_TYPE_MAP = {
-        // ----- 1. Bar family -----
         barChart: { base: 'bar' },
         bar: { base: 'bar' },
         columnChart: { base: 'bar' },
@@ -75,7 +54,6 @@
         stepBar: { base: 'bar', step: true },
         waterfallBar: { base: 'bar', waterfall: true },
         waterfallChart: { base: 'bar', waterfall: true },
-        // ----- 2. Line / Area family -----
         lineChart: { base: 'line' },
         line: { base: 'line' },
         smoothLine: { base: 'line', tension: 0.4 },
@@ -97,7 +75,6 @@
         percentArea: { base: 'line', fill: true, stacked: true,
                         percent: true, tension: 0.3 },
         gradientArea: { base: 'line', fill: true, tension: 0.4, gradient: true },
-        // ----- 3. Pie / Radial family -----
         pieChart: { base: 'pie' },
         pie: { base: 'pie' },
         doughnutChart: { base: 'doughnut' },
@@ -112,13 +89,11 @@
         waffleChart: { customRenderer: 'waffle' },
         sunburst: { customRenderer: 'sunburst' },
         marimekko: { customRenderer: 'marimekko' },
-        // ----- 4. Distribution -----
         histogram: { customRenderer: 'histogram' },
         boxPlot: { base: 'boxplot' },
         violinPlot: { base: 'violin' },
         dotPlot: { customRenderer: 'dotPlot' },
         densityChart: { customRenderer: 'density' },
-        // ----- 5. Scatter / Correlation -----
         scatterPlot: { base: 'scatter' },
         scatter: { base: 'scatter' },
         bubbleChart: { base: 'bubble' },
@@ -128,35 +103,29 @@
         bubbleHeatmap: { base: 'bubble' },
         heatmap: { base: 'matrix' },
         correlationMatrix: { base: 'matrix' },
-        // ----- 6. Radar / Spider -----
         radarChart: { base: 'radar' },
         radar: { base: 'radar' },
         spiderChart: { base: 'radar' },
         spiderWeb: { base: 'radar' },
         filledRadar: { base: 'radar', fill: true },
         multiRadar: { base: 'radar' },
-        // ----- 7. Geo -----
         choroplethMap: { customRenderer: 'geoNotice' },
         bubbleMap: { customRenderer: 'geoNotice' },
         flowMap: { customRenderer: 'geoNotice' },
         geoHeatmap: { customRenderer: 'geoNotice' },
-        // ----- 8. Flow / Hierarchy -----
         sankeyDiagram: { base: 'sankey' },
         sankey: { base: 'sankey' },
         funnelChart: { customRenderer: 'funnel' },
         ganttChart: { customRenderer: 'gantt' },
         gantt: { customRenderer: 'gantt' },
         treemap: { base: 'treemap' },
-        // ----- 9. Network -----
         networkGraph: { customRenderer: 'network' },
         chordDiagram: { customRenderer: 'chord' },
         arcDiagram: { customRenderer: 'arc' },
-        // ----- 10. Combo -----
         barLine: { base: 'bar', combo: 'bar+line' },
         areaBar: { base: 'bar', combo: 'bar+area' },
         dualAxisBar: { base: 'bar', dualAxis: true },
         comboMultiAxis: { base: 'bar', combo: 'bar+line', dualAxis: true },
-        // ----- Display -----
         kpiCard: { customRenderer: 'kpi' },
         kpi: { customRenderer: 'kpi' },
         metricTile: { customRenderer: 'metricTile' },
@@ -165,10 +134,6 @@
         table: { customRenderer: 'table' },
     };
 
-    // -----------------------------------------------------------------------
-    // Chart.js config builder — base = bar/line/pie/doughnut/polarArea/radar/
-    // scatter/bubble/boxplot/violin/matrix/sankey/treemap.
-    // -----------------------------------------------------------------------
     function toPercentDatasets(datasets) {
         var totals = [];
         (datasets[0] && datasets[0].data || []).forEach(function (_, i) {
@@ -195,7 +160,6 @@
         var tickColor = '#94a3b8';
         var gridColor = 'rgba(255,255,255,0.08)';
 
-        // -- Boxplot / Violin --
         if (base === 'boxplot' || base === 'violin') {
             function boxStats(arr) {
                 var s = (arr || []).slice().map(Number)
@@ -236,7 +200,6 @@
             };
         }
 
-        // -- Matrix (heatmap / correlation) --
         if (base === 'matrix') {
             var cells = [];
             var maxV = 0;
@@ -291,7 +254,6 @@
             };
         }
 
-        // -- Sankey --
         if (base === 'sankey') {
             var flows = [];
             var d0 = (dss[0] && dss[0].data) || [];
@@ -322,7 +284,6 @@
             };
         }
 
-        // -- Treemap --
         if (base === 'treemap') {
             var d0t = (dss[0] && dss[0].data) || [];
             var tdata = d0t.map(function (v, i) {
@@ -350,7 +311,6 @@
             };
         }
 
-        // -- Pie / Doughnut / PolarArea --
         if (base === 'pie' || base === 'doughnut' || base === 'polarArea') {
             var first = dss[0] || { data: [], label: '' };
             var data = first.data || [];
@@ -379,7 +339,6 @@
             return cfg;
         }
 
-        // -- Radar --
         if (base === 'radar') {
             var rds = dss.map(function (d, idx) {
                 var color = colorByIndex(idx);
@@ -408,7 +367,6 @@
             };
         }
 
-        // -- Scatter / Bubble --
         if (base === 'scatter' || base === 'bubble') {
             var sds = dss.map(function (d, idx) {
                 var color = colorByIndex(idx);
@@ -445,10 +403,8 @@
             };
         }
 
-        // -- Percent stacked: ma'lumotni normallashtirish --
         if (def.percent && dss.length > 1) { dss = toPercentDatasets(dss); }
 
-        // -- Bar / Line / Area --
         var ctx2d = canvas && canvas.getContext ? canvas.getContext('2d') : null;
         var datasets = dss.map(function (d, idx) {
             var color = colorByIndex(idx);
@@ -530,10 +486,6 @@
                  data: { labels: labels, datasets: datasets },
                  options: opts };
     }
-
-    // -----------------------------------------------------------------------
-    // Custom renderlar — 15 ta tur.
-    // -----------------------------------------------------------------------
 
     function renderTable(targetEl, spec) {
         var wrap = document.createElement('div');
@@ -1131,13 +1083,6 @@
         geoNotice: renderGeoNotice,
     };
 
-    /**
-     * Spec asosida targetEl ichiga grafikni chizadi.
-     *
-     * @param {Element} targetEl - chiqish konteyneri.
-     * @param {Object} spec - backend spec (viewType, labels, datasets, ...).
-     * @returns {void}
-     */
     function renderInto(targetEl, spec) {
         if (!targetEl || !spec) { return; }
         var vt = spec.viewType || 'bar';
@@ -1154,7 +1099,6 @@
             return;
         }
 
-        // Chart.js (core yoki plagin).
         var h = (vt === 'sparkline') ? 80 : 240;
         var canvas = ensureCanvas(targetEl, h);
         if (typeof window.Chart !== 'function') {

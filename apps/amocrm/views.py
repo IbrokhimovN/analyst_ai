@@ -11,9 +11,7 @@ from .sync import sync_all_now
 
 logger = logging.getLogger(__name__)
 
-
 def amocrm_auth(request):
-    """AmoCRM OAuth jarayonini boshlash — foydalanuvchini AmoCRM ga yo'naltirish."""
     auth_url = (
         f"https://{settings.AMOCRM_DOMAIN}/oauth?"
         f"client_id={settings.AMOCRM_CLIENT_ID}"
@@ -23,9 +21,7 @@ def amocrm_auth(request):
     )
     return HttpResponseRedirect(auth_url)
 
-
 def amocrm_callback(request):
-    """AmoCRM OAuth callback — code ni token ga almashtirish."""
     code = request.GET.get('code')
     if not code:
         messages.error(request, "AmoCRM dan authorization code kelmadi!")
@@ -36,7 +32,7 @@ def amocrm_callback(request):
         token_data = service.exchange_code(code)
 
         from .models import AmoCRMToken
-        AmoCRMToken.objects.all().delete()  # Eski tokenlarni o'chirish
+        AmoCRMToken.objects.all().delete()
         AmoCRMToken.objects.create(
             access_token=token_data["access_token"],
             refresh_token=token_data["refresh_token"],
@@ -45,7 +41,6 @@ def amocrm_callback(request):
         logger.info("AmoCRM token muvaffaqiyatli saqlandi")
         messages.success(request, "AmoCRM muvaffaqiyatli ulandi! Ma'lumotlar sinxronlanmoqda...")
 
-        # Dastlabki sinxronlash — sinxron ravishda (bir martalik)
         result = sync_all_now()
         messages.success(
             request,
@@ -60,10 +55,8 @@ def amocrm_callback(request):
 
     return redirect('dashboard:index')
 
-
 @csrf_exempt
 def amocrm_sync_now(request):
-    """Bir martalik sinxronlash — AmoCRM dan barcha ma'lumotlarni tortib olish."""
     try:
         from .models import AmoCRMToken
         if not AmoCRMToken.objects.exists():

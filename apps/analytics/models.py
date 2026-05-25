@@ -1,8 +1,6 @@
 from django.db import models
 
-
 class DailyStat(models.Model):
-    """Kunlik statistika — har kuni hisoblanib saqlanadi."""
     date = models.DateField(unique=True, db_index=True)
     total_leads = models.IntegerField(default=0)
     new_leads = models.IntegerField(default=0)
@@ -21,9 +19,7 @@ class DailyStat(models.Model):
     def __str__(self):
         return f"{self.date}: {self.new_leads} yangi, {self.total_revenue:,.0f} so'm"
 
-
 class WeeklyReport(models.Model):
-    """AI tomonidan generatsiya qilingan haftalik hisobot."""
     week_start = models.DateField()
     week_end = models.DateField()
     report_text = models.TextField()
@@ -38,9 +34,7 @@ class WeeklyReport(models.Model):
     def __str__(self):
         return f"Hisobot: {self.week_start} — {self.week_end}"
 
-
 class ManagerStat(models.Model):
-    """Menejer bo'yicha statistika."""
     date = models.DateField(db_index=True)
     manager_id = models.IntegerField()
     manager_name = models.CharField(max_length=255)

@@ -1,6 +1,3 @@
-/**
- * AI Chat Widget — WebSocket va REST orqali AI bilan muloqot.
- */
 class AIChatWidget {
     constructor(containerId, inputId, sendBtnId) {
         this.container = document.getElementById(containerId);
@@ -13,13 +10,11 @@ class AIChatWidget {
     }
 
     init() {
-        // Send button
         this.sendBtn.addEventListener('click', () => {
             const text = this.input.value.trim();
             if (text) this.sendMessage(text);
         });
 
-        // Enter to send
         this.input.addEventListener('keydown', (e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
@@ -28,7 +23,6 @@ class AIChatWidget {
             }
         });
 
-        // Try WebSocket, fallback to REST
         this.connectWebSocket();
     }
 
@@ -75,10 +69,8 @@ class AIChatWidget {
         this.isStreaming = true;
 
         if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-            // WebSocket orqali
             this.ws.send(JSON.stringify({ message: text, source: source }));
         } else {
-            // REST API orqali
             this.showTyping();
             try {
                 const data = await API.post('/ai/chat/', { message: text, source: source });

@@ -1,21 +1,6 @@
-/**
- * dashboard_dynamic.js — Dinamik Savdo Dashboard.
- *
- * Imkoniyatlar:
- *   1. AJAX yangilash — period/source o'zgarganda sahifa qayta yuklanmaydi,
- *      faqat #dash-root ichidagi kartalar almashtiriladi.
- *   2. Avto-yangilanish — har 60 soniyada ma'lumot jimgina yangilanadi.
- *   3. Manual refresh tugmasi + "oxirgi yangilanish" vaqti.
- *   4. Kartalar: jadval <-> grafik toggle (funnel, managers).
- *   5. Har-karta AI paneli:
- *        - "AI tahlil"  -> LangChain agent kartani tahlil qiladi.
- *        - "Ko'rinishni o'zgartir" -> AI xavfsiz view-spec (JSON config)
- *          qaytaradi, frontend kartani shu konfiguratsiya bo'yicha chizadi.
- */
 (function () {
     'use strict';
 
-    // ===== API endpointlari =====
     var API = {
         data:        '/api/v1/dashboard/data/',
         weekly:      '/api/v1/ai/report/weekly/',
@@ -23,20 +8,17 @@
         cardRender:  '/api/v1/ai/card/render/',
     };
 
-    var AUTO_REFRESH_MS = 60000;   // avto-yangilanish oralig'i
+    var AUTO_REFRESH_MS = 60000;
     var CSRF = (document.querySelector('meta[name="csrf-token"]') || {}).content || '';
 
-    // Joriy holat — period/source dashboard bo'ylab shu yerda saqlanadi.
     var state = {
         period: 'all',
         source: window.__crmSource || '',
         busy: false,
     };
 
-    // Chart.js instansiyalari — qayta chizishdan oldin destroy qilish uchun.
     var charts = {};
 
-    // Kartalarning ma'lumot manbai (json_script id) va kategoriya maydoni.
     var CARD_META = {
         funnel:      { json: 'funnel-data',      cat: 'name' },
         managers:    { json: 'managers-data',    cat: 'manager_name' },
@@ -48,7 +30,6 @@
         best_days:   { json: 'best-days-data',   cat: 'day' },
     };
 
-    // Metrik kalitlari uchun o'zbekcha sarlavhalar (jadval/grafik uchun).
     var METRIC_LABELS = {
         count: 'Soni', pct: 'Foiz, %', revenue: 'Tushum', won: 'Sotuv',
         calls: 'Call', conversations: 'Conversation', total_leads: 'Lidlar',
@@ -59,10 +40,6 @@
         total_revenue: 'Tushum', avg_deal: "O'rtacha chek",
         lead_value: '1 lid qiymati', sale_value: '1 sale qiymati',
     };
-
-    // =========================================================================
-    // Umumiy yordamchilar
-    // =========================================================================
 
     function esc(s) {
         var d = document.createElement('div');
@@ -103,17 +80,12 @@
     var PALETTE = ['#3b82f6', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6',
                    '#06b6d4', '#ec4899', '#14b8a6', '#f97316', '#a855f7'];
 
-    // Barcha grafiklarni o'chirish (innerHTML almashtirishdan oldin shart).
     function destroyCharts() {
         Object.keys(charts).forEach(function (k) {
-            try { charts[k].destroy(); } catch (e) { /* e'tiborsiz */ }
+            try { charts[k].destroy(); } catch (e) {  }
         });
         charts = {};
     }
-
-    // =========================================================================
-    // Kartalardagi standart grafiklar (kunlik dinamika, loss bar)
-    // =========================================================================
 
     function initDailyChart() {
         var ctx = document.getElementById('dailyDynamicsChart');
@@ -174,10 +146,6 @@
             setTimeout(function () { f.style.width = Math.max(pct, 4) + '%'; }, 70 * i);
         });
     }
-
-    // =========================================================================
-    // Funnel / Managers — jadval <-> grafik toggle (inline onclick chaqiradi)
-    // =========================================================================
 
     window.toggleCardView = function (card, btn) {
         var tableView = document.getElementById(card + '-table-view');
@@ -271,10 +239,6 @@
         }
     }
 
-    // =========================================================================
-    // Har-karta AI paneli
-    // =========================================================================
-
     function initCardAI() {
         document.querySelectorAll('.dcard-ai-btn').forEach(function (btn) {
             btn.addEventListener('click', function () {
@@ -288,7 +252,6 @@
         if (!cardEl) { return; }
         var panel = cardEl.querySelector('.dcard-ai');
         if (panel) {
-            // mavjud panelni ko'rsatish/yashirish
             if (panel.hasAttribute('hidden')) { panel.removeAttribute('hidden'); }
             else { panel.setAttribute('hidden', ''); }
             return;
@@ -298,7 +261,6 @@
         head.insertAdjacentElement('afterend', panel);
     }
 
-    // AI panelining DOM tuzilishini quradi.
     function buildAiPanel(card) {
         var panel = document.createElement('div');
         panel.className = 'dcard-ai';
@@ -322,7 +284,6 @@
                 '<div class="dca-out" hidden></div>' +
             '</div>';
 
-        // Tab almashtirish
         panel.querySelectorAll('.dca-tab').forEach(function (tab) {
             tab.addEventListener('click', function () {
                 var mode = tab.dataset.mode;
@@ -336,14 +297,12 @@
             });
         });
 
-        // "Tahlil" va "Qo'lla" tugmalari
         panel.querySelectorAll('.dca-go').forEach(function (go) {
             go.addEventListener('click', function () {
                 if (go.dataset.act === 'analyze') { runCardAnalyze(card, panel, go); }
                 else { runCardRender(card, panel, go); }
             });
         });
-        // Enter bilan ham yuborish
         var input = panel.querySelector('.dca-input');
         input.addEventListener('keydown', function (e) {
             if (e.key === 'Enter') {
@@ -354,7 +313,6 @@
         return panel;
     }
 
-    // --- AI: kartani tahlil qilish (LangChain agent) ---
     function runCardAnalyze(card, panel, btn) {
         var out = panel.querySelector('.dca-pane[data-pane="analyze"] .dca-out');
         btn.disabled = true;
@@ -387,7 +345,6 @@
             });
     }
 
-    // --- AI: kartaning ko'rinishini o'zgartirish (view-spec) ---
     function runCardRender(card, panel, btn) {
         var input = panel.querySelector('.dca-input');
         var out = panel.querySelector('.dca-pane[data-pane="render"] .dca-out');
@@ -430,11 +387,6 @@
             });
     }
 
-    // =========================================================================
-    // View-spec — AI konfiguratsiyasi bo'yicha kartani qayta chizish
-    // =========================================================================
-
-    // Karta uchun ma'lumot qatorlarini tayyorlaydi (massiv ko'rinishida).
     function cardRows(card) {
         var meta = CARD_META[card];
         var raw = readJSON(meta.json);
@@ -474,7 +426,6 @@
         }[card];
     }
 
-    // 'YYYY-MM-DD' -> 'DD.MM' (daily chartda sanani qisqartirish uchun).
     function shortLabel(card, val) {
         if (card === 'daily' && /^\d{4}-\d{2}-\d{2}$/.test(val)) {
             var p = val.split('-');
@@ -483,19 +434,16 @@
         return val;
     }
 
-    // AI view-spec ni kartaga qo'llaydi.
     function applyViewSpec(card, spec) {
         var cardEl = document.querySelector('.dash-card[data-card="' + card + '"]');
         if (!cardEl) { return; }
-        revertCard(card);  // avvalgi maxsus ko'rinish bo'lsa tozalaymiz
+        revertCard(card);
 
-        // Standart bolalarni (head va AI paneldan tashqari) yashiramiz.
         Array.prototype.forEach.call(cardEl.children, function (ch) {
             if (ch.classList.contains('dash-card-head') ||
                 ch.classList.contains('dcard-ai')) { return; }
             ch.classList.add('dcard-orig-hidden');
         });
-        // Toggle tugmasi maxsus ko'rinishda chalkashmasligi uchun yashiramiz.
         var toggle = cardEl.querySelector('.dash-toggle');
         if (toggle) { toggle.style.display = 'none'; }
 
@@ -515,7 +463,6 @@
         renderSpecContent(card, spec, box.querySelector('.dcard-custom-body'));
     }
 
-    // Maxsus ko'rinishni olib tashlab, kartani asl holiga qaytaradi.
     function revertCard(card) {
         var cardEl = document.querySelector('.dash-card[data-card="' + card + '"]');
         if (!cardEl) { return; }
@@ -530,31 +477,26 @@
         if (toggle) { toggle.style.display = ''; }
     }
 
-    // View-spec asosida tarkibni (grafik/jadval/kpi) chizadi.
     function renderSpecContent(card, spec, body) {
         var meta = CARD_META[card];
         var rows = cardRows(card);
 
-        // Asosiy metrikni tekshiramiz — yaroqsiz bo'lsa standartga qaytamiz.
         var metric = (card === 'finance' && (!spec.metric || !(spec.metric in (rows[0] || {}))))
                      ? 'value' : spec.metric;
         if (!rows.length || !(metric in rows[0])) { metric = defaultMetric(card); }
 
-        // Multi-metric: bo'sh yoki yaroqsizlarni tozalaymiz.
         var metrics = Array.isArray(spec.metrics) ? spec.metrics.slice() : [];
         metrics = metrics.filter(function (m) {
             return rows.length && (m in rows[0]);
         });
         if (!metrics.length) { metrics = [metric]; }
 
-        // Saralash
         if (spec.sortBy && rows.length && (spec.sortBy in rows[0])) {
             var dir = spec.sortDir === 'asc' ? 1 : -1;
             rows.sort(function (a, b) {
                 return (Number(a[spec.sortBy]) - Number(b[spec.sortBy])) * dir;
             });
         }
-        // Limit
         if (spec.limit && spec.limit > 0) { rows = rows.slice(0, spec.limit); }
 
         var labels = rows.map(function (r) {
@@ -563,7 +505,6 @@
         });
 
         var vt = spec.viewType;
-        // Asosiy 10 tur — dashboard'ning lokal render funksiyalari (eski path).
         var BASIC_VTS = {
             bar: 1, line: 1, area: 1, pie: 1, doughnut: 1,
             stacked: 1, horizontalBar: 1, table: 1, kpi: 1,
@@ -586,9 +527,6 @@
             return;
         }
 
-        // Kengaytirilgan 43 turidan biri — AIChartRender shared modulga
-        // delegate qilamiz. Rows va metrics ni unga mos labels+datasets ga
-        // aylantiramiz.
         var sharedSpec = {
             card: card,
             card_label: (meta && meta.label) || (CARD_META[card] && CARD_META[card].cat) || card,
@@ -615,7 +553,6 @@
         if (window.AIChartRender && typeof window.AIChartRender.renderInto === 'function') {
             window.AIChartRender.renderInto(area2, sharedSpec);
         } else {
-            // Fallback — VIEW_NORMALIZE va eski path
             var normalized = VIEW_NORMALIZE[vt] || 'bar';
             var canvas2 = document.createElement('canvas');
             area2.appendChild(canvas2);
@@ -654,7 +591,6 @@
         return box;
     }
 
-    // Bitta metrik uchun rang (palitra orqali).
     function metricColor(i) { return PALETTE[i % PALETTE.length]; }
 
     function drawSpecChart(card, canvas, viewType, labels, rows, metrics) {
@@ -663,7 +599,6 @@
         var multi = metrics.length > 1;
         var cfg;
 
-        // ---- Pie / doughnut — faqat birinchi metric ishlatiladi ----
         if (viewType === 'pie' || viewType === 'doughnut') {
             var m0 = metrics[0];
             var values = rows.map(function (r) { return Number(r[m0]) || 0; });
@@ -693,7 +628,6 @@
             return;
         }
 
-        // ---- Bar / line / area / stacked / horizontalBar ----
         var datasets = metrics.map(function (m, idx) {
             var data = rows.map(function (r) { return Number(r[m]) || 0; });
             var color = metricColor(idx);
@@ -707,7 +641,6 @@
                     fill: viewType === 'area',
                 };
             }
-            // bar / stacked / horizontalBar — multi bo'lsa har metric o'z rangi
             return {
                 type: 'bar', label: metricLabel(m), data: data,
                 backgroundColor: multi ? color
@@ -733,7 +666,6 @@
         charts['custom-' + card] = new Chart(canvas, cfg);
     }
 
-    // #rrggbb -> rgba(...)
     function hexToRgba(hex, alpha) {
         var m = /^#?([0-9a-f]{6})$/i.exec(hex || '');
         if (!m) { return hex; }
@@ -756,16 +688,10 @@
         };
     }
 
-    // =========================================================================
-    // Dinamik yangilash — AJAX
-    // =========================================================================
-
-    // 'all' -> '' (endpoint bo'sh period ni "barchasi" deb tushunadi).
     function apiPeriod() {
         return state.period === 'all' ? '' : state.period;
     }
 
-    // #dash-root ichini API dan kelgan HTML bilan almashtiradi.
     function loadDashboard(opts) {
         opts = opts || {};
         var root = document.getElementById('dash-root');
@@ -786,14 +712,13 @@
                     stampUpdated(data.updated_at);
                 }
             })
-            .catch(function () { /* tarmoq xatosi — jimgina o'tkazamiz */ })
+            .catch(function () {  })
             .finally(function () {
                 state.busy = false;
                 root.classList.remove('dash-loading');
             });
     }
 
-    // #dash-root yangilangach ishga tushadigan barcha initlar.
     function initDashBody() {
         initDailyChart();
         initLossBars();
@@ -807,24 +732,16 @@
         if (el && time) { el.textContent = '⟳ ' + time; }
     }
 
-    // Maxsus AI ko'rinish yoki ochiq AI panel bo'lsa — avto-yangilashni o'tkazamiz
-    // (foydalanuvchining ishini buzmaslik uchun).
     function hasActiveAI() {
         return !!document.querySelector('.dcard-custom') ||
                !!document.querySelector('.dcard-ai:not([hidden])');
     }
 
-    // =========================================================================
-    // Global funksiyalar (inline onclick chaqiradi)
-    // =========================================================================
-
-    // 'YYYY-MM-DD' -> 'DD.MM' (Oraliq pill yorlig'i uchun).
     function shortDate(iso) {
         var p = (iso || '').split('-');
         return p.length === 3 ? p[2] + '.' + p[1] : iso;
     }
 
-    // Joriy period holatiga ko'ra pillalarni va "Oraliq" pill yorlig'ini yangilaydi.
     function highlightPeriod() {
         var isRange = state.period.indexOf('range:') === 0;
         document.querySelectorAll('#dash-period .dperiod').forEach(function (b) {
@@ -843,7 +760,6 @@
         }
     }
 
-    // URL dagi ?period= ni joriy holat bilan moslaydi (refresh/ulashish uchun).
     function syncPeriodUrl() {
         var url = new URL(window.location.href);
         if (state.period === 'all') { url.searchParams.delete('period'); }
@@ -856,7 +772,6 @@
         if (el) { el.setAttribute('hidden', ''); }
     }
 
-    // Davr (period) tanlovi — AJAX bilan, sahifa qayta yuklanmaydi.
     window.setPeriod = function (p) {
         state.period = p || 'all';
         closeRangePicker();
@@ -865,7 +780,6 @@
         loadDashboard();
     };
 
-    // "Oraliq" pill — sana tanlash panelini ochish/yopish.
     window.toggleRangePicker = function () {
         var el = document.getElementById('dash-range');
         if (!el) { return; }
@@ -873,7 +787,6 @@
         else { el.setAttribute('hidden', ''); }
     };
 
-    // Tanlangan sana oralig'ini qo'llash.
     window.applyRange = function () {
         var fromEl = document.getElementById('range-from');
         var toEl = document.getElementById('range-to');
@@ -886,7 +799,7 @@
             if (errEl) { errEl.textContent = msg; errEl.removeAttribute('hidden'); }
         }
         if (!f || !t) { showErr('Ikkala sanani ham tanlang.'); return; }
-        if (f > t) {                       // tartibni to'g'rilaymiz
+        if (f > t) {
             var tmp = f; f = t; t = tmp;
             if (fromEl) { fromEl.value = f; }
             if (toEl) { toEl.value = t; }
@@ -898,14 +811,12 @@
         loadDashboard();
     };
 
-    // CRM source — base.html dagi versiyani AJAX variantiga almashtiramiz.
     window.setCrmSource = function (source) {
         source = source || '';
         state.source = source;
         if (source) { localStorage.setItem('crmSource', source); }
         else { localStorage.removeItem('crmSource'); }
         window.__crmSource = source;
-        // Topbar CRM tugmalari holatini yangilash
         document.querySelectorAll('.crm-filter-btn').forEach(function (b) {
             b.classList.remove('crm-active');
         });
@@ -919,7 +830,6 @@
             var first = document.querySelector('.crm-filter-btn');
             if (first) { first.classList.add('crm-active'); }
         }
-        // URL ni yangilash
         var url = new URL(window.location.href);
         if (source) { url.searchParams.set('source', source); }
         else { url.searchParams.delete('source'); }
@@ -927,7 +837,6 @@
         loadDashboard();
     };
 
-    // Manual yangilash tugmasi
     window.refreshDashboard = function () {
         var btn = document.getElementById('dash-refresh');
         if (btn) { btn.classList.add('dash-refresh-spin'); }
@@ -937,7 +846,6 @@
         }, 700);
     };
 
-    // Pastdagi umumiy AI tahlil tugmasi (haftalik hisobot)
     window.runAiAnalysis = function () {
         var btn = document.getElementById('ai-analyze-btn');
         var box = document.getElementById('ai-result');
@@ -968,11 +876,6 @@
             });
     };
 
-    // =========================================================================
-    // AI chat widget'dan keladigan buyruqlar (dashboard:command event)
-    // =========================================================================
-
-    // Yashirilgan kartalarni qayta yuklashda esda saqlash uchun localStorage.
     var HIDDEN_KEY = 'ai_dash_hidden_cards_v1';
 
     function getHiddenCards() {
@@ -991,60 +894,43 @@
         });
     }
 
-    // Dashboard renderer faqat asosiy 8 turni biladi. Chat'dan kengaytirilgan
-    // 43+ tur kelsa, eng yaqin asosiy turga normallashtiramiz.
     var VIEW_NORMALIZE = {
-        // Bar oilasi
         barChart: 'bar', bar: 'bar', columnChart: 'bar', columnBar: 'bar',
         groupedBar: 'bar', stackedBar: 'stacked', stacked: 'stacked',
         horizontalBar: 'horizontalBar', horizontalStackedBar: 'horizontalBar',
         percentBar: 'stacked', rangeBar: 'bar', bulletChart: 'horizontalBar',
         stepBar: 'bar', waterfallBar: 'bar', waterfallChart: 'bar',
-        // Line oilasi
         lineChart: 'line', line: 'line', smoothLine: 'line', splineLine: 'line',
         straightLine: 'line', steppedLine: 'line', stepChart: 'line',
         dashedLine: 'line', multiLine: 'line', pointLine: 'line',
         bumpChart: 'line', sparkline: 'line',
-        // Area oilasi
         areaChart: 'area', area: 'area', smoothArea: 'area',
         stackedArea: 'area', streamGraph: 'area', streamArea: 'area',
         percentArea: 'area', gradientArea: 'area',
-        // Pie / Radial
         pieChart: 'pie', pie: 'pie', doughnutChart: 'doughnut',
         doughnut: 'doughnut', halfPie: 'pie', halfDoughnut: 'doughnut',
         semicircleDoughnut: 'doughnut', gaugeChart: 'doughnut',
         gauge: 'doughnut', polarArea: 'pie', nightingaleRose: 'pie',
         waffleChart: 'pie', sunburst: 'doughnut', marimekko: 'stacked',
-        // Distribution
         histogram: 'bar', boxPlot: 'bar', violinPlot: 'bar',
         dotPlot: 'bar', densityChart: 'line',
-        // Scatter / Correlation
         scatterPlot: 'bar', scatter: 'bar', bubbleChart: 'bar', bubble: 'bar',
         connectedScatter: 'line', jitterScatter: 'bar', bubbleHeatmap: 'bar',
         heatmap: 'horizontalBar', correlationMatrix: 'horizontalBar',
-        // Radar / Spider
         radarChart: 'bar', radar: 'bar', spiderChart: 'bar', spiderWeb: 'bar',
         filledRadar: 'bar', multiRadar: 'bar',
-        // Geo (fallback bar)
         choroplethMap: 'horizontalBar', bubbleMap: 'bar',
         flowMap: 'horizontalBar', geoHeatmap: 'horizontalBar',
-        // Flow / Hierarchy
         sankeyDiagram: 'horizontalBar', sankey: 'horizontalBar',
         funnelChart: 'horizontalBar', ganttChart: 'horizontalBar',
         gantt: 'horizontalBar', treemap: 'horizontalBar',
-        // Network
         networkGraph: 'bar', chordDiagram: 'pie', arcDiagram: 'line',
-        // Combo
         barLine: 'bar', areaBar: 'area', dualAxisBar: 'bar',
         comboMultiAxis: 'bar',
-        // Display
         kpiCard: 'kpi', kpi: 'kpi', metricTile: 'kpi', numberCards: 'kpi',
         progressBar: 'horizontalBar', table: 'table',
     };
 
-    // Chat'dan kelgan spec'ni applyViewSpec uchun moslaymiz. Endi
-    // renderSpecContent AIChartRender'ga delegate qilgani uchun, 43 turning
-    // hammasi to'g'ridan-to'g'ri ishlaydi — normalize qilish shart emas.
     function applySpecFromChat(card, spec) {
         if (!spec) { return false; }
         applyViewSpec(card, {
@@ -1060,7 +946,6 @@
         return true;
     }
 
-    // ----- Custom kartalar (chat orqali qo'shilgan) -----
     var CUSTOM_KEY = 'ai_dash_custom_cards_v1';
 
     function getCustomCards() {
@@ -1101,9 +986,6 @@
         var btn = el.querySelector('[data-custom-id]');
         btn.addEventListener('click', function () { removeCustomCard(item.id); });
 
-        // Server pre-built labels+datasets bilan spec berib qo'ygan, shuni
-        // AIChartRender'ga to'g'ridan-to'g'ri uzatamiz — 43 turning hammasi
-        // ishlaydi.
         if (window.AIChartRender && typeof window.AIChartRender.renderInto === 'function') {
             try { window.AIChartRender.renderInto(area, item.spec); }
             catch (e) { area.textContent = 'Grafik xato: ' + e.message; }
@@ -1115,7 +997,6 @@
         }
     }
 
-    // Dashboard'da custom karta uchun soddalashtirilgan renderer.
     function renderCustomChart(canvas, spec, normalizedVt) {
         if (typeof Chart === 'undefined') { return; }
         var c = themeColors();
@@ -1254,7 +1135,6 @@
             return;
         }
         if (action === 'remove_custom_card' && card) {
-            // card kalit emas, custom_id sifatida ham qabul qilamiz
             var arr2 = getCustomCards().filter(function (it) {
                 return it.id !== card && it.spec.card !== card;
             });
@@ -1275,19 +1155,13 @@
         if (action === 'open_ai_panel' && card) { toggleAiPanel(card); return; }
     });
 
-    // =========================================================================
-    // Boshlash
-    // =========================================================================
-
     document.addEventListener('DOMContentLoaded', function () {
-        // Boshlang'ich period ni URL dan o'qiymiz.
         var params = new URLSearchParams(window.location.search);
         var p = params.get('period');
         var rangeRe = /^range:\d{4}-\d{2}-\d{2}:\d{4}-\d{2}-\d{2}$/;
         if (p === 'day' || p === 'week' || p === 'month') {
             state.period = p;
         } else if (p && rangeRe.test(p)) {
-            // Maxsus sana oralig'i — date inputlarni ham to'ldiramiz.
             state.period = p;
             var pp = p.split(':');
             var rf = document.getElementById('range-from');
@@ -1300,7 +1174,6 @@
         state.source = window.__crmSource || '';
         highlightPeriod();
 
-        // Sana panelidan tashqariga bosilganda uni yopamiz.
         document.addEventListener('click', function (e) {
             var picker = document.getElementById('dash-range');
             var rb = document.getElementById('dperiod-range-btn');
@@ -1309,10 +1182,8 @@
             picker.setAttribute('hidden', '');
         });
 
-        // Sahifa server tomonidan render qilingan — faqat initlarni ishga tushiramiz.
         initDashBody();
 
-        // Avto-yangilanish — AI panel ochiq bo'lmasa.
         setInterval(function () {
             if (!state.busy && !hasActiveAI() &&
                 document.visibilityState === 'visible') {

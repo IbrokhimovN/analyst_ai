@@ -6,9 +6,7 @@ from asgiref.sync import sync_to_async
 
 logger = logging.getLogger(__name__)
 
-
 class AIChatConsumer(AsyncWebsocketConsumer):
-    """WebSocket consumer — AI bilan real-time chat."""
 
     async def connect(self):
         self.user = self.scope.get("user")
@@ -39,13 +37,11 @@ class AIChatConsumer(AsyncWebsocketConsumer):
                 }))
                 return
 
-            # Typing indicator
             await self.send(text_data=json.dumps({
                 "type": "typing",
                 "message": "AI o'ylayapti..."
             }))
 
-            # AI javobni streaming rejimda yuborish
             full_response = ""
             async for chunk in self._stream_response(question, source):
                 full_response += chunk
@@ -54,7 +50,6 @@ class AIChatConsumer(AsyncWebsocketConsumer):
                     "chunk": chunk,
                 }))
 
-            # Yakuniy javob
             await self.send(text_data=json.dumps({
                 "type": "message",
                 "message": full_response,
@@ -73,12 +68,10 @@ class AIChatConsumer(AsyncWebsocketConsumer):
             }))
 
     async def _stream_response(self, question, source=None):
-        """AI javobini streaming rejimda generatsiya qilish."""
         from .services import stream_analyze, get_context_data
 
         context_data = await sync_to_async(get_context_data)(source=source)
 
-        # sync generator ni async ga o'tkazish
         import asyncio
 
         def _generate():

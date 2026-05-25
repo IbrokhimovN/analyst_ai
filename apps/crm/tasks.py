@@ -1,10 +1,3 @@
-"""
-Bitrix24 Sync Tasks — Bitrix24 dan ma'lumotlarni sinxronlash.
-
-Bu tasklar alohida ishlaydi va Bitrix24 dan deallar,
-kontaktlar, leadlar, va pipeline statuslarini tortib,
-umumiy Lead/Contact modellariga yozadi (source='bitrix').
-"""
 import logging
 from datetime import datetime, timezone as tz
 
@@ -14,9 +7,7 @@ from django.utils import timezone
 
 logger = logging.getLogger(__name__)
 
-
 def _parse_bitrix_date(date_str):
-    """Bitrix24 sana formatini datetime ga o'tkazish."""
     if not date_str:
         return None
     try:
@@ -24,10 +15,8 @@ def _parse_bitrix_date(date_str):
     except (ValueError, TypeError):
         return None
 
-
 @shared_task(bind=True, max_retries=3)
 def sync_bitrix_deals(self):
-    """Bitrix24 dan deallarni sinxronlash → Lead modeliga (source='bitrix')."""
     from apps.crm.adapters.bitrix import Bitrix24Adapter
     from apps.amocrm.models import Lead
 
@@ -43,8 +32,6 @@ def sync_bitrix_deals(self):
                 break
 
             for item in items:
-                # Bitrix deal ID ni amocrm_id maydoniga yozamiz
-                # prefix bilan ajratamiz: 1000000 + bitrix_id
                 bitrix_id = item["id"]
                 internal_id = 1000000 + bitrix_id
 
@@ -80,10 +67,8 @@ def sync_bitrix_deals(self):
         logger.error(f"Bitrix24 deal sinxronlashda xatolik: {exc}")
         self.retry(exc=exc, countdown=60)
 
-
 @shared_task(bind=True, max_retries=3)
 def sync_bitrix_contacts(self):
-    """Bitrix24 dan kontaktlarni sinxronlash."""
     from apps.crm.adapters.bitrix import Bitrix24Adapter
     from apps.amocrm.models import Contact
 
@@ -134,14 +119,8 @@ def sync_bitrix_contacts(self):
         logger.error(f"Bitrix24 kontakt sinxronlashda xatolik: {exc}")
         self.retry(exc=exc, countdown=60)
 
-
 @shared_task(bind=True, max_retries=3)
 def sync_bitrix_leads(self):
-    """Bitrix24 dan Leadlarni (dastlabki murojaatlar) sinxronlash.
-
-    Bu Bitrix24 ga xos entity — AmoCRM da bunday alohida entity yo'q.
-    Lead konvertatsiya qilinganda Deal + Contact ga aylanadi.
-    """
     from apps.crm.adapters.bitrix import Bitrix24Adapter
     from apps.amocrm.models import Lead
 
@@ -158,7 +137,6 @@ def sync_bitrix_leads(self):
 
             for item in items:
                 bitrix_id = item["id"]
-                # Bitrix Lead uchun 2000000 prefix
                 internal_id = 2000000 + bitrix_id
 
                 created_at = _parse_bitrix_date(item.get("created_at"))
@@ -190,10 +168,8 @@ def sync_bitrix_leads(self):
         logger.error(f"Bitrix24 lead sinxronlashda xatolik: {exc}")
         self.retry(exc=exc, countdown=60)
 
-
 @shared_task(bind=True, max_retries=3)
 def sync_bitrix_pipelines(self):
-    """Bitrix24 dan pipeline va statuslarni sinxronlash."""
     from apps.crm.adapters.bitrix import Bitrix24Adapter
     from apps.amocrm.models import Pipeline, PipelineStatus
 
@@ -203,7 +179,6 @@ def sync_bitrix_pipelines(self):
         total = 0
 
         for p in pipelines:
-            # Bitrix pipeline ID uchun 1000000 prefix
             internal_pipeline_id = 1000000 + int(p["id"])
 
             pipeline, _ = Pipeline.objects.update_or_create(
@@ -237,10 +212,8 @@ def sync_bitrix_pipelines(self):
         logger.error(f"Bitrix24 pipeline sinxronlashda xatolik: {exc}")
         self.retry(exc=exc, countdown=60)
 
-
 @shared_task
 def sync_bitrix_all():
-    """Bitrix24 dan barcha ma'lumotlarni sinxronlash."""
     from django.conf import settings
 
     if not getattr(settings, 'BITRIX_WEBHOOK_URL', ''):
