@@ -435,6 +435,23 @@
     }
 
     function applyViewSpec(card, spec) {
+        var customArr = getCustomCards();
+        var existingCustom = customArr.find(function (it) {
+            return it.spec && it.spec.card === card;
+        });
+        if (existingCustom) {
+            var merged = Object.assign({}, existingCustom.spec, spec || {});
+            merged.card = card;
+            if (!spec || !spec.labels) { merged.labels = existingCustom.spec.labels; }
+            if (!spec || !spec.datasets) { merged.datasets = existingCustom.spec.datasets; }
+            existingCustom.spec = merged;
+            setCustomCards(customArr);
+            var oldEl = document.querySelector(
+                '.dash-card-custom[data-custom-id="' + existingCustom.id + '"]');
+            if (oldEl) { oldEl.remove(); }
+            renderCustomCard(existingCustom);
+            return;
+        }
         var cardEl = document.querySelector('.dash-card[data-card="' + card + '"]');
         if (!cardEl) { return; }
         revertCard(card);
