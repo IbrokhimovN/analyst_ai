@@ -288,8 +288,22 @@ XULOSA STILI
 • Salom-alik yoki bog'liq bo'lmagan savolga: tool chaqirmasdan qisqa javob.
 """
 
+_VOICE_MODE_SUFFIX = """
+
+OVOZLI REJIM (foydalanuvchi mikrofondan so'radi):
+• Javob MAKSIMAL QISQA — 1-2 jumla, faqat tasdiq matni.
+• Hech qanday markdown jadval, ro'yxat, sarlavha, statistika YOQ.
+• Emoji-li uzun ro'yxatlar YOQ.
+• Faqat dashboard'da o'zgarish qiling (tool chaqiring) va qisqa tasdiq bering.
+• Misol: "✅ Karta qo'shildi.", "✅ Voronka kartasi pie ga aylandi.",
+  "✅ Loss kartasi yashirildi.".
+• Agar foydalanuvchi ma'lumot so'rasa (savol-javob), faqat asosiy raqamni
+  ayting — bir jumla. Misol: "Bugungi tushum 12 million so'm."
+"""
+
+
 def chat_with_agent(question: str, manager_id: int = 0,
-                    source=None, period=None) -> dict:
+                    source=None, period=None, is_voice: bool = False) -> dict:
     from langchain.agents import AgentExecutor, create_tool_calling_agent
     from langchain.prompts import ChatPromptTemplate, MessagesPlaceholder
     from langchain_core.tools import StructuredTool
@@ -421,8 +435,9 @@ def chat_with_agent(question: str, manager_id: int = 0,
                                   input_key='input', output_key='output')
     history_msgs = mem.chat_memory.messages
 
+    system_prompt = _CHAT_SYSTEM_PROMPT + (_VOICE_MODE_SUFFIX if is_voice else '')
     prompt = ChatPromptTemplate.from_messages([
-        ('system', _CHAT_SYSTEM_PROMPT),
+        ('system', system_prompt),
         MessagesPlaceholder('history'),
         ('human', '{input}'),
         MessagesPlaceholder('agent_scratchpad'),

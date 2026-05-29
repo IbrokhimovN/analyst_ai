@@ -491,6 +491,7 @@
                     message: text,
                     manager_id: 0,
                     source: window.__crmSource || '',
+                    is_voice: !!state.aiVoiceMode,
                 }),
             })
                 .then(function (r) {
@@ -613,13 +614,6 @@
             vb.appendChild(wave);
             vb.appendChild(timeEl);
             bubble.appendChild(vb);
-
-            if (transcript) {
-                var tx = document.createElement('div');
-                tx.className = 'voice-tx';
-                tx.textContent = '"' + transcript + '"';
-                bubble.appendChild(tx);
-            }
 
             wrap.appendChild(bubble);
             body.appendChild(wrap);
@@ -960,6 +954,7 @@
                     message: text,
                     manager_id: 0,
                     source: window.__crmSource || '',
+                    is_voice: !!state.aiVoiceMode,
                 }),
             })
                 .then(function (r) {

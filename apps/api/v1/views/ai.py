@@ -143,9 +143,10 @@ class AIChatView(APIView):
                     'sources': result['sources'],
                     'used_rag': result['used_rag'],
                 })
+            is_voice = bool(request.data.get('is_voice'))
             result = agent_mod.chat_with_agent(
                 question, manager_id=manager_id,
-                source=source, period=period,
+                source=source, period=period, is_voice=is_voice,
             )
         except Exception as exc:
             logger.error('AI chat xatolik: %s', exc)
