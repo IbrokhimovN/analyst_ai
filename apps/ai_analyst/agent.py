@@ -183,59 +183,11 @@ MA'LUMOT TOOL'LARI (qachon chaqirish)
    Savollar: "qaysi kuni yaxshi sotamiz", "dushanba/juma qanday".
 
 ══════════════════════════════════════════════════════════════════════════
-HARAKAT TOOL'LARI (chatda grafik chizish va dashboard'ni boshqarish)
+HARAKAT TOOL'LARI (dashboard'ni boshqarish — chatda grafik chizish YOQ)
 ══════════════════════════════════════════════════════════════════════════
-• `make_chart` — chatda grafik (Chart.js) chizadi. Foydalanuvchi "grafik
-   ko'rsat", "diagramma", "chart qil", "pie qil", "stolb", "trend" desa
-   — albatta shuni chaqiring.
-
-   Parametrlar:
-     - `card` — qaysi ma'lumot ('funnel', 'managers', 'loss', 'finance',
-       'conversions', 'daily', 'followup', 'best_days').
-     - `view_type` — **43 ta canonical tur** mavjud (har biri haqiqatan
-       chiziladi):
-       • **Bar oilasi (9)**: barChart, columnChart, groupedBar, stackedBar,
-         horizontalBar, horizontalStackedBar, percentBar, rangeBar, bulletChart.
-       • **Line/Area oilasi (14)**: lineChart, areaChart, stackedArea,
-         streamGraph, stepChart, bumpChart, sparkline, smoothLine,
-         straightLine, dashedLine, multiLine, pointLine, smoothArea,
-         percentArea.
-       • **Pie/Radial (11)**: pieChart, doughnutChart, halfPie, halfDoughnut,
-         semicircleDoughnut, gaugeChart, polarArea, nightingaleRose,
-         waffleChart, sunburst, marimekko.
-       • **Distribution (5)**: histogram, boxPlot, violinPlot, dotPlot,
-         densityChart.
-       • **Scatter/Correlation (7)**: scatterPlot, bubbleChart,
-         connectedScatter, jitterScatter, bubbleHeatmap, heatmap,
-         correlationMatrix.
-       • **Radar/Spider (4)**: radarChart, spiderChart, filledRadar,
-         multiRadar.
-       • **Geo (4)**: choroplethMap, bubbleMap, flowMap, geoHeatmap
-         (geografik ma'lumot kerak; mavjud bo'lmasa fallback).
-       • **Flow/Hierarchy (5)**: sankeyDiagram, funnelChart, waterfallChart,
-         ganttChart, treemap.
-       • **Network (3)**: networkGraph, chordDiagram, arcDiagram.
-       • **Display/KPI (5)**: kpiCard, metricTile, progressBar, table,
-         numberCards.
-       Foydalanuvchi qaysi turni aytsa, **aynan o'shani** ishlating — pirovard
-       renderer biror narsa chizadi (ba'zilari custom canvas/SVG bilan).
-     - `metric` — asosiy sonli maydon (har kartaga mos: managers uchun
-       'revenue'/'won'/'calls', funnel uchun 'count'/'pct' va h.k.).
-     - `metrics` — bir nechta birga ko'rsatish kerak bo'lsa massiv (faqat
-       bar/line/area/stacked uchun). Pie/doughnut uchun bitta.
-     - `sort_by`, `sort_dir` — saralash (sonli maydon nomi va 'asc'/'desc').
-     - `limit` — nechta element ko'rsatilsin (0 — barchasi).
-     - `title` — grafik sarlavhasi.
-
-   Misol: "Menejerlarni pie chart bilan tushum bo'yicha ko'rsat" →
-   `make_chart(card='managers', view_type='pie', metric='revenue', limit=10)`.
-
-   Misol: "Kunlik lid va sotuv stolb diagrammada" →
-   `make_chart(card='daily', view_type='bar', metric='leads',
-   metrics=['leads', 'sales'], title='Kunlik dinamika')`.
-
-   Foydalanuvchi "barchasini grafik bilan ko'rsat" desa — bir nechta marta
-   chaqiring (har karta uchun alohida).
+**MUHIM:** Grafik/chart/diagramma so'rovi har doim **dashboard'ga** boradi,
+chatga emas. Buning uchun `dashboard_command(action='add_custom_card', ...)`
+ishlatiladi.
 
 • `dashboard_command` — asosiy dashboard'ni boshqaradi. Foydalanuvchi
    "kartani yashir/ko'rsat", "voronka kartasini olib tashla", "managers
@@ -258,9 +210,33 @@ HARAKAT TOOL'LARI (chatda grafik chizish va dashboard'ni boshqarish)
         * `refresh_dashboard` — dashboard'ni yangilash.
         * `open_ai_panel` — kartaning AI tahlil panelini ochish.
      - `card` — karta kaliti (yuqoridagi 8 ta dan biri).
-     - `view_type`, `metric`, `metrics`, `sort_by`, `sort_dir`, `limit`,
-       `title` — `set_card_view`/`add_custom_card` uchun (`make_chart` bilan
-       bir xil parametrlar).
+     - `view_type` — **43 ta canonical tur** mavjud (har biri haqiqatan
+       chiziladi):
+       • **Bar oilasi (9)**: barChart, columnChart, groupedBar, stackedBar,
+         horizontalBar, horizontalStackedBar, percentBar, rangeBar, bulletChart.
+       • **Line/Area oilasi (14)**: lineChart, areaChart, stackedArea,
+         streamGraph, stepChart, bumpChart, sparkline, smoothLine,
+         straightLine, dashedLine, multiLine, pointLine, smoothArea,
+         percentArea.
+       • **Pie/Radial (11)**: pieChart, doughnutChart, halfPie, halfDoughnut,
+         semicircleDoughnut, gaugeChart, polarArea, nightingaleRose,
+         waffleChart, sunburst, marimekko.
+       • **Distribution (5)**: histogram, boxPlot, violinPlot, dotPlot,
+         densityChart.
+       • **Scatter/Correlation (7)**: scatterPlot, bubbleChart,
+         connectedScatter, jitterScatter, bubbleHeatmap, heatmap,
+         correlationMatrix.
+       • **Radar/Spider (4)**: radarChart, spiderChart, filledRadar, multiRadar.
+       • **Geo (4)**: choroplethMap, bubbleMap, flowMap, geoHeatmap.
+       • **Flow/Hierarchy (5)**: sankeyDiagram, funnelChart, waterfallChart,
+         ganttChart, treemap.
+       • **Network (3)**: networkGraph, chordDiagram, arcDiagram.
+       • **Display/KPI (5)**: kpiCard, metricTile, progressBar, table,
+         numberCards.
+     - `metric` — asosiy sonli maydon (managers uchun 'revenue'/'won'/'calls',
+       funnel uchun 'count'/'pct' va h.k.).
+     - `metrics` — bir nechta birga ko'rsatish kerak bo'lsa massiv.
+     - `sort_by`, `sort_dir`, `limit`, `title` — boshqa parametrlar.
 
    Misollar:
    • "Loss kartasini yashir" →
@@ -268,21 +244,26 @@ HARAKAT TOOL'LARI (chatda grafik chizish va dashboard'ni boshqarish)
    • "Menejerlar kartasini doughnut qil" →
      `dashboard_command(action='set_card_view', card='managers',
      view_type='doughnut', metric='revenue', limit=5)`.
-   • "Yangi karta qo'sh — kunlik sotuvlar smoothLine bilan" →
+   • "Menejerlarni pie chart qil" / "menejerlarni pie chartda ko'rsat" →
+     `dashboard_command(action='add_custom_card', card='managers',
+     view_type='pieChart', metric='revenue', limit=10,
+     title='Menejerlar ulushi')`.
+   • "Kunlik sotuv va lidlarni bar chart qil" →
      `dashboard_command(action='add_custom_card', card='daily',
-     view_type='smoothLine', metric='sales', title='Sotuv tendensiyasi')`.
+     view_type='barChart', metric='leads',
+     metrics=['leads', 'sales'], title='Kunlik dinamika')`.
    • "Hamma kartalarni tozala" →
-     `dashboard_command(action='remove_all_custom')` + (agar kerak bo'lsa)
-     `dashboard_command(action='hide_all_cards')`.
-   • "Barcha kartalarni qaytar / hammasini ko'rsat" →
+     `dashboard_command(action='remove_all_custom')`.
+   • "Barcha kartalarni qaytar" →
      `dashboard_command(action='show_all_cards')`.
 
 ══════════════════════════════════════════════════════════════════════════
 XULOSA STILI
 ══════════════════════════════════════════════════════════════════════════
 • Statistika savoliga: 1-2 jumla xulosa + jadval/ro'yxat + tavsiya.
-• Grafik so'rasa: `make_chart` ni chaqiring, javobda 1 jumlali sharh yozing
-  ("Quyida menejerlar reytingi pie chart sifatida — Akmal yetakchi.").
+• Grafik/chart/diagramma so'rasa: `dashboard_command(action='add_custom_card')`
+  ni chaqiring, javobda QISQA tasdiq yozing ("✅ Karta dashboard'ga qo'shildi.").
+  Chatda grafik chizish YOQ — har doim dashboard'ga qo'yiladi.
 • Dashboard buyrug'iga: `dashboard_command` ni chaqiring, tasdiqlang
   ("Loss kartasi yashirildi.").
 • Salom-alik yoki bog'liq bo'lmagan savolga: tool chaqirmasdan qisqa javob.
@@ -428,20 +409,12 @@ def chat_with_agent(question: str, manager_id: int = 0,
 
     extra_tools = [
         StructuredTool.from_function(
-            func=_make_chart_tool,
-            name='make_chart',
-            description=(
-                'Chat ichida Chart.js grafik chizadi. Foydalanuvchi "grafik", '
-                '"chart", "diagramma", "pie", "stolb", "trend" so\'rasa ishlating.'
-            ),
-            args_schema=_MakeChartArgs,
-        ),
-        StructuredTool.from_function(
             func=_dashboard_command_tool,
             name='dashboard_command',
             description=(
                 'Asosiy dashboard\'ni boshqaradi: kartani ko\'rsatish/yashirish, '
-                'ko\'rinishini o\'zgartirish, yangilash.'
+                'ko\'rinishini o\'zgartirish, yangilash, yangi karta qo\'shish. '
+                'Grafik/chart so\'rovlari uchun action=add_custom_card ishlatiladi.'
             ),
             args_schema=_DashCmdArgs,
         ),
