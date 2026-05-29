@@ -355,7 +355,32 @@
 
         var MAX_REC_MS = 60000;
 
-        var state = { busy: false, history: loadHistory(), aiVoiceMode: false };
+        var state = {
+            busy: false,
+            history: loadHistory(),
+            aiVoiceMode: false,
+            currentAudio: null,
+            currentResetUI: null,
+        };
+
+        function playExclusive(audio, resetUI) {
+            if (state.currentAudio && state.currentAudio !== audio) {
+                try { state.currentAudio.pause(); } catch (e) {}
+                if (typeof state.currentResetUI === 'function') {
+                    try { state.currentResetUI(); } catch (e) {}
+                }
+            }
+            state.currentAudio = audio;
+            state.currentResetUI = resetUI;
+            return audio.play();
+        }
+
+        function stopExclusive(audio) {
+            if (state.currentAudio === audio) {
+                state.currentAudio = null;
+                state.currentResetUI = null;
+            }
+        }
         var voice = {
             recorder: null, stream: null, recognition: null, chunks: [],
             transcript: '', interim: '', start: 0, timer: 0,
@@ -615,9 +640,13 @@
             });
 
             if (audio) {
-                audio.addEventListener('ended', function () {
+                var resetUI = function () {
                     playBtn.innerHTML = playSVG;
                     barEls.forEach(function (b) { b.classList.remove('on'); });
+                };
+                audio.addEventListener('ended', function () {
+                    resetUI();
+                    stopExclusive(audio);
                 });
                 audio.addEventListener('timeupdate', function () {
                     var p = audio.duration ? audio.currentTime / audio.duration : 0;
@@ -629,11 +658,12 @@
                 });
                 playBtn.addEventListener('click', function () {
                     if (audio.paused) {
-                        audio.play().catch(function () {  });
+                        playExclusive(audio, resetUI).catch(function () {});
                         playBtn.innerHTML = pauseSVG;
                     } else {
                         audio.pause();
                         playBtn.innerHTML = playSVG;
+                        stopExclusive(audio);
                     }
                 });
             } else {
@@ -705,9 +735,13 @@
                     barEls[idx].style.height = bh + 'px';
                 });
             });
-            audio.addEventListener('ended', function () {
+            var resetUI = function () {
                 playBtn.innerHTML = playSVG;
                 barEls.forEach(function (b) { b.classList.remove('on'); });
+            };
+            audio.addEventListener('ended', function () {
+                resetUI();
+                stopExclusive(audio);
             });
             audio.addEventListener('timeupdate', function () {
                 var p = audio.duration ? audio.currentTime / audio.duration : 0;
@@ -723,15 +757,16 @@
             });
             playBtn.addEventListener('click', function () {
                 if (audio.paused) {
-                    audio.play().catch(function () {});
+                    playExclusive(audio, resetUI).catch(function () {});
                     playBtn.innerHTML = pauseSVG;
                 } else {
                     audio.pause();
                     playBtn.innerHTML = playSVG;
+                    stopExclusive(audio);
                 }
             });
 
-            audio.play().then(function () {
+            playExclusive(audio, resetUI).then(function () {
                 playBtn.innerHTML = pauseSVG;
             }).catch(function () {});
         }
