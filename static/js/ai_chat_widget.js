@@ -892,6 +892,19 @@
             if (e.key === 'Escape' && panel.classList.contains('open')) { close(); }
         });
 
+        window.AIChatWidget = {
+            open: open,
+            close: close,
+            toggle: toggle,
+            ask: function (text) {
+                open();
+                if (text) {
+                    input.value = text;
+                    autosize();
+                }
+            },
+        };
+
         rehydrate();
     }
 

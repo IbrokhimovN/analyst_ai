@@ -888,10 +888,39 @@
     }
 
     function applyHiddenFromStorage() {
+        var rowsToReflow = [];
         getHiddenCards().forEach(function (card) {
             var el = document.querySelector('.dash-card[data-card="' + card + '"]');
-            if (el) { el.classList.add('dash-card-hidden'); el.style.display = 'none'; }
+            if (el) {
+                el.classList.add('dash-card-hidden');
+                el.style.display = 'none';
+                var row = el.parentElement;
+                if (row && rowsToReflow.indexOf(row) === -1) { rowsToReflow.push(row); }
+            }
         });
+        rowsToReflow.forEach(reflowRow);
+    }
+
+    function reflowRow(rowEl) {
+        if (!rowEl || !rowEl.classList || !rowEl.classList.contains('dash-row')) { return; }
+        var cards = rowEl.querySelectorAll(':scope > .dash-card[data-card]');
+        if (!cards.length) { return; }
+        var visible = 0;
+        cards.forEach(function (c) {
+            if (!c.classList.contains('dash-card-hidden') && c.style.display !== 'none') {
+                visible++;
+            }
+        });
+        if (visible === 0) {
+            rowEl.style.display = 'none';
+            rowEl.style.gridTemplateColumns = '';
+        } else if (visible === cards.length) {
+            rowEl.style.display = '';
+            rowEl.style.gridTemplateColumns = '';
+        } else {
+            rowEl.style.display = '';
+            rowEl.style.gridTemplateColumns = 'repeat(' + visible + ', 1fr)';
+        }
     }
 
     var VIEW_NORMALIZE = {
@@ -966,25 +995,31 @@
         if (!host) { return; }
         host.removeAttribute('hidden');
 
+        var cardTitle = item.spec.title || item.spec.card_label || 'Maxsus karta';
         var el = document.createElement('div');
         el.className = 'dash-card dash-card-custom';
         el.dataset.customId = item.id;
         el.innerHTML =
             '<div class="dash-card-head">' +
                 '<span class="dch-icon">✨</span>' +
-                '<h2 class="dch-title">' + escapeHtml(item.spec.title ||
-                    item.spec.card_label || 'Maxsus karta') + '</h2>' +
+                '<h2 class="dch-title">' + escapeHtml(cardTitle) + '</h2>' +
                 '<div class="dch-actions">' +
-                    '<button type="button" class="dash-toggle" ' +
-                        'data-custom-id="' + item.id + '">✕ O\'chirish</button>' +
+                    '<button type="button" class="dcard-ai-btn" ' +
+                        'title="AI tahlil va ko\'rinish">🤖 AI</button>' +
                 '</div>' +
             '</div>' +
             '<div class="dash-chart-area" style="position:relative;min-height:280px;"></div>';
         host.appendChild(el);
 
         var area = el.querySelector('.dash-chart-area');
-        var btn = el.querySelector('[data-custom-id]');
-        btn.addEventListener('click', function () { removeCustomCard(item.id); });
+        var aiBtn = el.querySelector('.dcard-ai-btn');
+        aiBtn.addEventListener('click', function () {
+            if (window.AIChatWidget && typeof window.AIChatWidget.ask === 'function') {
+                window.AIChatWidget.ask('"' + cardTitle + '" kartasi haqida: ');
+            } else if (window.AIChatWidget && typeof window.AIChatWidget.open === 'function') {
+                window.AIChatWidget.open();
+            }
+        });
 
         if (window.AIChartRender && typeof window.AIChartRender.renderInto === 'function') {
             try { window.AIChartRender.renderInto(area, item.spec); }
@@ -1087,21 +1122,31 @@
 
     function hideAllMainCards() {
         var hidden = [];
+        var rows = [];
         document.querySelectorAll('.dash-card[data-card]').forEach(function (el) {
             var key = el.getAttribute('data-card');
             el.style.display = 'none';
             el.classList.add('dash-card-hidden');
             if (hidden.indexOf(key) === -1) { hidden.push(key); }
+            if (el.parentElement && rows.indexOf(el.parentElement) === -1) {
+                rows.push(el.parentElement);
+            }
         });
         setHiddenCards(hidden);
+        rows.forEach(reflowRow);
     }
 
     function showAllMainCards() {
+        var rows = [];
         document.querySelectorAll('.dash-card[data-card]').forEach(function (el) {
             el.style.display = '';
             el.classList.remove('dash-card-hidden');
+            if (el.parentElement && rows.indexOf(el.parentElement) === -1) {
+                rows.push(el.parentElement);
+            }
         });
         setHiddenCards([]);
+        rows.forEach(reflowRow);
     }
 
     window.addEventListener('dashboard:command', function (evt) {
@@ -1111,14 +1156,22 @@
 
         if (action === 'hide_card' && card) {
             var el = document.querySelector('.dash-card[data-card="' + card + '"]');
-            if (el) { el.style.display = 'none'; el.classList.add('dash-card-hidden'); }
+            if (el) {
+                el.style.display = 'none';
+                el.classList.add('dash-card-hidden');
+                reflowRow(el.parentElement);
+            }
             var hidden = getHiddenCards();
             if (hidden.indexOf(card) === -1) { hidden.push(card); setHiddenCards(hidden); }
             return;
         }
         if (action === 'show_card' && card) {
             var el2 = document.querySelector('.dash-card[data-card="' + card + '"]');
-            if (el2) { el2.style.display = ''; el2.classList.remove('dash-card-hidden'); }
+            if (el2) {
+                el2.style.display = '';
+                el2.classList.remove('dash-card-hidden');
+                reflowRow(el2.parentElement);
+            }
             setHiddenCards(getHiddenCards().filter(function (c) { return c !== card; }));
             return;
         }
