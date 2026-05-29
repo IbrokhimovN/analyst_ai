@@ -1120,13 +1120,61 @@
         if (host) { host.innerHTML = ''; host.setAttribute('hidden', ''); }
     }
 
+    function rebuildCustomSpec(item) {
+        if (!item || !item.spec) { return item; }
+        var card = item.spec.card;
+        var meta = card && CARD_META[card];
+        if (!meta) { return item; }
+        var rows = cardRows(card);
+        if (!rows.length) { return item; }
+
+        var spec = item.spec;
+        var first = rows[0];
+        var metric = spec.metric;
+        if (card === 'finance' && (!metric || !(metric in first))) { metric = 'value'; }
+        if (!metric || !(metric in first)) { metric = defaultMetric(card); }
+
+        var metrics = Array.isArray(spec.metrics) ? spec.metrics.slice() : [];
+        metrics = metrics.filter(function (m) { return (m in first); });
+        if (!metrics.length) { metrics = [metric]; }
+
+        if (spec.sortBy && (spec.sortBy in first)) {
+            var dir = spec.sortDir === 'asc' ? 1 : -1;
+            rows.sort(function (a, b) {
+                return (Number(a[spec.sortBy]) - Number(b[spec.sortBy])) * dir;
+            });
+        }
+        if (spec.limit && spec.limit > 0) { rows = rows.slice(0, spec.limit); }
+
+        var labels = rows.map(function (r) {
+            if (card === 'finance') { return r._label; }
+            return shortLabel(card, r[meta.cat]);
+        });
+
+        var newSpec = Object.assign({}, spec, {
+            labels: labels,
+            datasets: metrics.map(function (m) {
+                return {
+                    label: metricLabel(m),
+                    metric: m,
+                    data: rows.map(function (r) { return Number(r[m]) || 0; }),
+                };
+            }),
+            metric: metric,
+            metrics: metrics,
+        });
+        return Object.assign({}, item, { spec: newSpec });
+    }
+
     function rehydrateCustomCards() {
         var host = document.getElementById('ai-custom-cards');
         if (!host) { return; }
         host.innerHTML = '';
         var items = getCustomCards();
         if (!items.length) { host.setAttribute('hidden', ''); return; }
-        items.forEach(renderCustomCard);
+        var refreshed = items.map(rebuildCustomSpec);
+        setCustomCards(refreshed);
+        refreshed.forEach(renderCustomCard);
     }
 
     function escapeHtml(s) {
@@ -1196,27 +1244,11 @@
         }
         if (action === 'add_custom_card' && cmd.spec) {
             var baseCard = cmd.card || cmd.spec.card || '';
+            var item = { id: customCardId(baseCard || 'x'), spec: cmd.spec };
             var arr = getCustomCards();
-            var existingIdx = -1;
-            if (baseCard) {
-                existingIdx = arr.findIndex(function (it) {
-                    return it.spec.card === baseCard;
-                });
-            }
-            if (existingIdx >= 0) {
-                var existing = arr[existingIdx];
-                existing.spec = cmd.spec;
-                setCustomCards(arr);
-                var oldEl = document.querySelector(
-                    '.dash-card-custom[data-custom-id="' + existing.id + '"]');
-                if (oldEl) { oldEl.remove(); }
-                renderCustomCard(existing);
-            } else {
-                var item = { id: customCardId(baseCard || 'x'), spec: cmd.spec };
-                arr.push(item);
-                setCustomCards(arr);
-                renderCustomCard(item);
-            }
+            arr.push(item);
+            setCustomCards(arr);
+            renderCustomCard(item);
             return;
         }
         if (action === 'remove_custom_card' && card) {

@@ -238,17 +238,41 @@ ishlatiladi.
      - `metrics` — bir nechta birga ko'rsatish kerak bo'lsa massiv.
      - `sort_by`, `sort_dir`, `limit`, `title` — boshqa parametrlar.
 
+   **MUHIM — `add_custom_card` vs `set_card_view` farqi:**
+
+   • `add_custom_card` — foydalanuvchi YANGI karta qo'shishni so'raganda.
+     Belgilar: "yangi", "qo'sh", "yarat", "boshqa", "yana", "ko'rsat", "qil",
+     "chiqar". Misol so'rovlar:
+     - "yangi karta yarat — bar chart bilan"
+     - "boshqa pie chart qo'sh"
+     - "menejerlarni pie chartda ko'rsat"
+     - "kunlik sotuvlarni bar chart qil"
+
+   • `set_card_view` — foydalanuvchi MAVJUD kartani o'zgartirishni so'raganda.
+     Belgilar: "shu", "buni", "uni", "kartani", "o'zgartir", "almashtir",
+     "qayta", "endi", "hozir". Misol so'rovlar:
+     - "shu kartani line chartga o'zgartir"
+     - "buni pie qil"
+     - "endi shu kartani bar qil"
+     - "menejerlar kartasini doughnut qil"
+
+   ⚠️ Agar shubha bo'lsa va foydalanuvchi grafik turini o'zgartirayotgan
+   bo'lsa — `set_card_view` ni ishlating, chunki bu mavjud kartani yangilaydi.
+
    Misollar:
    • "Loss kartasini yashir" →
      `dashboard_command(action='hide_card', card='loss')`.
-   • "Menejerlar kartasini doughnut qil" →
+   • "Menejerlar kartasini doughnut qil" (mavjud kartani o'zgartir) →
      `dashboard_command(action='set_card_view', card='managers',
      view_type='doughnut', metric='revenue', limit=5)`.
-   • "Menejerlarni pie chart qil" / "menejerlarni pie chartda ko'rsat" →
+   • "Yangi karta — menejerlarni pie chartda ko'rsat" →
      `dashboard_command(action='add_custom_card', card='managers',
      view_type='pieChart', metric='revenue', limit=10,
      title='Menejerlar ulushi')`.
-   • "Kunlik sotuv va lidlarni bar chart qil" →
+   • "Shu kartani line chartga o'zgartir" →
+     `dashboard_command(action='set_card_view', card='daily',
+     view_type='lineChart', metric='sales')`.
+   • "Kunlik sotuv va lidlarni bar chart qil" (yangi karta) →
      `dashboard_command(action='add_custom_card', card='daily',
      view_type='barChart', metric='leads',
      metrics=['leads', 'sales'], title='Kunlik dinamika')`.
