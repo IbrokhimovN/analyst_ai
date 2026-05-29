@@ -25,6 +25,7 @@ urlpatterns = [
     path('ai/card/render/', ai.CardRenderView.as_view(), name='ai-card-render'),
     path('ai/managers/', ai.ManagersListView.as_view(), name='ai-managers'),
     path('ai/report/weekly/', ai.WeeklyReportView.as_view(), name='ai-weekly-report'),
+    path('ai/tts/', ai.TTSView.as_view(), name='ai-tts'),
     path('auth/token/', TokenObtainPairView.as_view(), name='token-obtain'),
     path('auth/refresh/', TokenRefreshView.as_view(), name='token-refresh'),
     path('schema/', SpectacularAPIView.as_view(), name='schema'),

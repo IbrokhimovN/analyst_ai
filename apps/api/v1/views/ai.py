@@ -8,9 +8,12 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from django.http import HttpResponse
+
 from apps.ai_analyst import agent as agent_mod
 from apps.ai_analyst import memory as memory_mod
 from apps.ai_analyst import rag as rag_mod
+from apps.ai_analyst import tts as tts_mod
 from apps.ai_analyst.models import ChatMessage, KnowledgeDocument
 from apps.ai_analyst.services import generate_weekly_report
 from apps.amocrm.models import User as AmoCRMUser
@@ -266,3 +269,23 @@ class WeeklyReportView(APIView):
         source = _clean_source(request.query_params.get('source'))
         report = generate_weekly_report(source=source)
         return Response({'report': report})
+
+
+class TTSView(APIView):
+    permission_classes = [AllowAny]
+    throttle_scope = 'tts'
+
+    def post(self, request):
+        text = (request.data.get('text') or '').strip()
+        if not text:
+            return Response({'error': 'Matn kiritilmagan.'},
+                            status=status.HTTP_400_BAD_REQUEST)
+        voice = request.data.get('voice') or tts_mod.DEFAULT_VOICE
+        audio = tts_mod.synthesize(text, voice=voice)
+        if not audio:
+            return Response({'error': 'TTS yaratib bo\'lmadi.'},
+                            status=status.HTTP_503_SERVICE_UNAVAILABLE)
+        response = HttpResponse(audio, content_type='audio/mpeg')
+        response['Content-Length'] = str(len(audio))
+        response['Cache-Control'] = 'private, max-age=604800'
+        return response

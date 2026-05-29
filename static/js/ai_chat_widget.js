@@ -183,6 +183,11 @@
         '.voice-wave span.on { background: #fff; }',
         '.voice-time { font-size: 11.5px; opacity: .85; font-variant-numeric: tabular-nums; flex-shrink: 0; }',
         '.voice-tx { font-size: 11.5px; opacity: .85; margin-top: 4px; line-height: 1.4; font-style: italic; }',
+        '.ai-voice-bubble { margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,.12); }',
+        '.msg.ai .bubble .ai-voice-bubble .voice-play { background: rgba(99,102,241,.25); color: #c7d2fe; }',
+        '.msg.ai .bubble .ai-voice-bubble .voice-play:hover { background: rgba(99,102,241,.4); }',
+        '.msg.ai .bubble .ai-voice-bubble .voice-wave span { background: rgba(199,210,254,.4); }',
+        '.msg.ai .bubble .ai-voice-bubble .voice-wave span.on { background: #c7d2fe; }',
         '.hint { font-size: 10.5px; opacity: .5; margin-top: 6px; text-align: center; }',
         '@media (max-width: 480px) {',
         '  .panel { right: 12px; left: 12px; bottom: 84px; width: auto; height: calc(100vh - 100px); }',
@@ -350,12 +355,14 @@
 
         var MAX_REC_MS = 60000;
 
-        var state = { busy: false, history: loadHistory() };
+        var state = { busy: false, history: loadHistory(), aiVoiceMode: false };
         var voice = {
             recorder: null, stream: null, recognition: null, chunks: [],
             transcript: '', interim: '', start: 0, timer: 0,
             stopping: false, maxTimer: 0,
         };
+
+        var TTS_ENDPOINT = '/api/v1/ai/tts/';
 
         function open() {
             panel.classList.add('open');
@@ -635,6 +642,100 @@
             }
         }
 
+        function fetchAIVoice(text) {
+            return fetch(TTS_ENDPOINT, {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken(),
+                },
+                body: JSON.stringify({ text: text }),
+            }).then(function (r) {
+                if (!r.ok) { throw new Error('TTS HTTP ' + r.status); }
+                return r.blob();
+            });
+        }
+
+        function prependAIVoiceBubble(targetEl, blob) {
+            if (!blob || !targetEl) { return; }
+            var vb = document.createElement('div');
+            vb.className = 'voice-bubble ai-voice-bubble';
+
+            var url = URL.createObjectURL(blob);
+            var audio = new Audio(url);
+
+            var playBtn = document.createElement('button');
+            playBtn.type = 'button';
+            playBtn.className = 'voice-play';
+            playBtn.title = 'Tinglash';
+            var playSVG = '<svg viewBox="0 0 24 24" fill="currentColor"><polygon points="6 4 20 12 6 20"/></svg>';
+            var pauseSVG = '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14"/><rect x="14" y="5" width="4" height="14"/></svg>';
+            playBtn.innerHTML = playSVG;
+
+            var wave = document.createElement('div');
+            wave.className = 'voice-wave';
+            var barEls = [];
+            for (var i = 0; i < 24; i++) {
+                var s = document.createElement('span');
+                var h = 4 + (Math.sin(i * 0.7) + 1) * 6;
+                s.style.height = h + 'px';
+                wave.appendChild(s);
+                barEls.push(s);
+            }
+
+            var timeEl = document.createElement('span');
+            timeEl.className = 'voice-time';
+            timeEl.textContent = '0:00';
+
+            vb.appendChild(playBtn);
+            vb.appendChild(wave);
+            vb.appendChild(timeEl);
+            targetEl.insertBefore(vb, targetEl.firstChild);
+
+            audio.addEventListener('loadedmetadata', function () {
+                if (isFinite(audio.duration)) {
+                    timeEl.textContent = fmtDuration(audio.duration * 1000);
+                }
+            });
+            makeWaveBars(blob, 0, function (arr) {
+                if (!arr) { return; }
+                arr.forEach(function (v, idx) {
+                    var bh = Math.max(3, Math.round(v * 18));
+                    barEls[idx].style.height = bh + 'px';
+                });
+            });
+            audio.addEventListener('ended', function () {
+                playBtn.innerHTML = playSVG;
+                barEls.forEach(function (b) { b.classList.remove('on'); });
+            });
+            audio.addEventListener('timeupdate', function () {
+                var p = audio.duration ? audio.currentTime / audio.duration : 0;
+                var cutoff = Math.floor(p * barEls.length);
+                barEls.forEach(function (b, idx) {
+                    if (idx < cutoff) { b.classList.add('on'); }
+                    else { b.classList.remove('on'); }
+                });
+                if (isFinite(audio.duration)) {
+                    var remaining = (audio.duration - audio.currentTime) * 1000;
+                    if (remaining > 0) { timeEl.textContent = fmtDuration(remaining); }
+                }
+            });
+            playBtn.addEventListener('click', function () {
+                if (audio.paused) {
+                    audio.play().catch(function () {});
+                    playBtn.innerHTML = pauseSVG;
+                } else {
+                    audio.pause();
+                    playBtn.innerHTML = playSVG;
+                }
+            });
+
+            audio.play().then(function () {
+                playBtn.innerHTML = pauseSVG;
+            }).catch(function () {});
+        }
+
         function showRecordingUI() {
             recTextEl.textContent = 'Tinglayapman...';
             recTimeEl.textContent = '0:00';
@@ -781,6 +882,7 @@
                 if (welcome) { welcome.remove(); }
                 appendVoiceMessage(blob, transcript, duration);
                 if (transcript) {
+                    state.aiVoiceMode = true;
                     pushHistory('user', '🎤 ' + transcript);
                     askAI(transcript);
                 } else {
@@ -853,6 +955,18 @@
 
                     pushHistory('ai', data.answer || '');
                     scrollDown();
+
+                    if (state.aiVoiceMode && data.answer) {
+                        var answerText = data.answer;
+                        fetchAIVoice(answerText)
+                            .then(function (blob) {
+                                prependAIVoiceBubble(thinking, blob);
+                                scrollDown();
+                            })
+                            .catch(function (err) {
+                                console.warn('AI TTS failed:', err);
+                            });
+                    }
                 })
                 .catch(function (e) {
                     thinking.innerHTML = '❌ Xatolik: ' +
@@ -861,6 +975,7 @@
                 .finally(function () {
                     state.busy = false;
                     send.disabled = false;
+                    state.aiVoiceMode = false;
                     scrollDown();
                 });
         }
