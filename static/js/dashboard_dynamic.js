@@ -247,8 +247,8 @@
         });
     }
 
-    function toggleAiPanel(card) {
-        var cardEl = document.querySelector('.dash-card[data-card="' + card + '"]');
+    function toggleAiPanel(card, cardEl) {
+        cardEl = cardEl || document.querySelector('.dash-card[data-card="' + card + '"]');
         if (!cardEl) { return; }
         var panel = cardEl.querySelector('.dcard-ai');
         if (panel) {
@@ -999,6 +999,7 @@
         var el = document.createElement('div');
         el.className = 'dash-card dash-card-custom';
         el.dataset.customId = item.id;
+        el.dataset.baseCard = item.spec.card || '';
         el.innerHTML =
             '<div class="dash-card-head">' +
                 '<span class="dch-icon">✨</span>' +
@@ -1013,12 +1014,9 @@
 
         var area = el.querySelector('.dash-chart-area');
         var aiBtn = el.querySelector('.dcard-ai-btn');
+        var baseCard = item.spec.card || item.id;
         aiBtn.addEventListener('click', function () {
-            if (window.AIChatWidget && typeof window.AIChatWidget.ask === 'function') {
-                window.AIChatWidget.ask('"' + cardTitle + '" kartasi haqida: ');
-            } else if (window.AIChatWidget && typeof window.AIChatWidget.open === 'function') {
-                window.AIChatWidget.open();
-            }
+            toggleAiPanel(baseCard, el);
         });
 
         if (window.AIChartRender && typeof window.AIChartRender.renderInto === 'function') {
@@ -1180,11 +1178,28 @@
             return;
         }
         if (action === 'add_custom_card' && cmd.spec) {
-            var item = { id: customCardId(cmd.card || 'x'), spec: cmd.spec };
+            var baseCard = cmd.card || cmd.spec.card || '';
             var arr = getCustomCards();
-            arr.push(item);
-            setCustomCards(arr);
-            renderCustomCard(item);
+            var existingIdx = -1;
+            if (baseCard) {
+                existingIdx = arr.findIndex(function (it) {
+                    return it.spec.card === baseCard;
+                });
+            }
+            if (existingIdx >= 0) {
+                var existing = arr[existingIdx];
+                existing.spec = cmd.spec;
+                setCustomCards(arr);
+                var oldEl = document.querySelector(
+                    '.dash-card-custom[data-custom-id="' + existing.id + '"]');
+                if (oldEl) { oldEl.remove(); }
+                renderCustomCard(existing);
+            } else {
+                var item = { id: customCardId(baseCard || 'x'), spec: cmd.spec };
+                arr.push(item);
+                setCustomCards(arr);
+                renderCustomCard(item);
+            }
             return;
         }
         if (action === 'remove_custom_card' && card) {
@@ -1194,11 +1209,16 @@
             setCustomCards(arr2);
             document.querySelectorAll('.dash-card-custom').forEach(function (el) {
                 if (el.dataset.customId === card ||
+                    el.dataset.baseCard === card ||
                     (el.querySelector('.dch-title') &&
                      el.querySelector('.dch-title').textContent.indexOf(card) > -1)) {
                     el.remove();
                 }
             });
+            var host = document.getElementById('ai-custom-cards');
+            if (host && !host.querySelector('.dash-card-custom')) {
+                host.setAttribute('hidden', '');
+            }
             return;
         }
         if (action === 'remove_all_custom') { removeAllCustomCards(); return; }

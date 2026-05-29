@@ -147,10 +147,28 @@ _ENGLISH_TO_UZBEK = {
     'rub': 'rubl',
 }
 
+_DIGIT_NAMES = [
+    'nol', 'bir', 'ikki', 'uch', "to'rt", 'besh',
+    'olti', 'yetti', 'sakkiz', "to'qqiz",
+]
+
+_UZ_MONTHS = {
+    1: 'yanvar', 2: 'fevral', 3: 'mart', 4: 'aprel',
+    5: 'may', 6: 'iyun', 7: 'iyul', 8: 'avgust',
+    9: 'sentabr', 10: 'oktabr', 11: 'noyabr', 12: 'dekabr',
+}
+
+_DATE_ISO_RE = re.compile(r'\b(\d{4})-(\d{1,2})-(\d{1,2})\b')
+_DATE_DMY_RE = re.compile(r'\b(\d{1,2})[./](\d{1,2})[./](\d{4})\b')
+_TIME_RE = re.compile(r'\b(\d{1,2}):(\d{2})(?::\d{2})?\b')
+_PHONE_INTL_RE = re.compile(r'\+\d{9,15}\b')
+_LONG_NUM_RE = re.compile(r'\b\d{8,}\b')
+_DECIMAL_DOT_RE = re.compile(r'-?\d+\.\d+')
+_DECIMAL_COMMA_RE = re.compile(r'(?<![\d,])-?\d+,\d{1,2}(?!\d)')
 _NUMBER_RE = re.compile(r'-?\d[\d\s,]*\d|-?\d')
 _PERCENT_RE = re.compile(r'(-?\d+(?:[.,]\d+)?)\s*%')
 _CURRENCY_SUM_RE = re.compile(
-    r'(-?\d+(?:[\s,]\d{3})*)\s*(?:so\'?m|sum|som)',
+    r'(-?\d+(?:[\s,]\d{3})*(?:\.\d+)?)\s*(?:so\'?m|sum|som)',
     re.IGNORECASE,
 )
 _DOLLAR_RE = re.compile(r'\$\s*(-?\d+(?:[\s,]\d{3})*(?:\.\d+)?)')
@@ -164,6 +182,20 @@ def _normalize_number(match_str):
         return None
 
 
+def _digits_to_words(digits):
+    return ' '.join(_DIGIT_NAMES[int(d)] for d in digits if d.isdigit())
+
+
+def _decimal_words(num_str):
+    sep = '.' if '.' in num_str else ','
+    int_part, _, frac_part = num_str.partition(sep)
+    int_n = _normalize_number(int_part)
+    if int_n is None:
+        return None
+    frac_words = _digits_to_words(frac_part)
+    return uz_number_to_words(int_n) + ' nuqta ' + frac_words
+
+
 def _replace_number(match):
     n = _normalize_number(match.group(0))
     if n is None:
@@ -171,27 +203,91 @@ def _replace_number(match):
     return ' ' + uz_number_to_words(n) + ' '
 
 
+def _replace_decimal(match):
+    words = _decimal_words(match.group(0))
+    if words is None:
+        return match.group(0)
+    return ' ' + words + ' '
+
+
 def _replace_percent(match):
-    n = _normalize_number(match.group(1).split('.')[0].split(',')[0])
+    num_str = match.group(1)
+    if '.' in num_str or ',' in num_str:
+        words = _decimal_words(num_str)
+        if words is not None:
+            return ' ' + words + ' foiz '
+    n = _normalize_number(num_str)
     if n is None:
         return match.group(0)
     return ' ' + uz_number_to_words(n) + ' foiz '
 
 
 def _replace_sum(match):
-    n = _normalize_number(match.group(1))
+    num_str = match.group(1)
+    if '.' in num_str:
+        words = _decimal_words(num_str)
+        if words is not None:
+            return ' ' + words + " so'm "
+    n = _normalize_number(num_str)
     if n is None:
         return match.group(0)
     return ' ' + uz_number_to_words(n) + " so'm "
 
 
 def _replace_dollar(match):
-    cleaned = match.group(1).replace(' ', '').replace(',', '').split('.')[0]
-    try:
-        n = int(cleaned)
-    except ValueError:
+    num_str = match.group(1)
+    if '.' in num_str:
+        words = _decimal_words(num_str)
+        if words is not None:
+            return ' ' + words + ' dollar '
+    n = _normalize_number(num_str)
+    if n is None:
         return match.group(0)
     return ' ' + uz_number_to_words(n) + ' dollar '
+
+
+def _replace_date_iso(match):
+    year = int(match.group(1))
+    month = int(match.group(2))
+    day = int(match.group(3))
+    if not (1 <= month <= 12 and 1 <= day <= 31):
+        return match.group(0)
+    return (' ' + uz_number_to_words(year) + ' yil ' +
+            _UZ_MONTHS[month] + ' ' + uz_number_to_words(day) + ' ')
+
+
+def _replace_date_dmy(match):
+    day = int(match.group(1))
+    month = int(match.group(2))
+    year = int(match.group(3))
+    if not (1 <= month <= 12 and 1 <= day <= 31):
+        return match.group(0)
+    return (' ' + uz_number_to_words(year) + ' yil ' +
+            _UZ_MONTHS[month] + ' ' + uz_number_to_words(day) + ' ')
+
+
+def _replace_time(match):
+    h = int(match.group(1))
+    m = int(match.group(2))
+    if not (0 <= h <= 23 and 0 <= m <= 59):
+        return match.group(0)
+    prev = match.string[:match.start()].rstrip().lower()
+    soat = '' if prev.endswith('soat') else 'soat '
+    if m == 0:
+        return ' ' + soat + uz_number_to_words(h) + ' '
+    return (' ' + soat + uz_number_to_words(h) +
+            ' ' + uz_number_to_words(m) + ' minut ')
+
+
+def _replace_phone(match):
+    digits = re.sub(r'\D', '', match.group(0))
+    if not (9 <= len(digits) <= 15):
+        return match.group(0)
+    return ' ' + _digits_to_words(digits) + ' '
+
+
+def _replace_long_number(match):
+    return ' ' + _digits_to_words(match.group(0)) + ' '
 
 
 def _replace_english_terms(text):
@@ -218,9 +314,17 @@ def clean_text_for_tts(text):
     text = _EMOJI_RE.sub(' ', text)
     text = _ARROWS_RE.sub(' ', text)
 
+    text = _DATE_ISO_RE.sub(_replace_date_iso, text)
+    text = _DATE_DMY_RE.sub(_replace_date_dmy, text)
+    text = _TIME_RE.sub(_replace_time, text)
+    text = _PHONE_INTL_RE.sub(_replace_phone, text)
+    text = _LONG_NUM_RE.sub(_replace_long_number, text)
+
     text = _PERCENT_RE.sub(_replace_percent, text)
     text = _DOLLAR_RE.sub(_replace_dollar, text)
     text = _CURRENCY_SUM_RE.sub(_replace_sum, text)
+    text = _DECIMAL_DOT_RE.sub(_replace_decimal, text)
+    text = _DECIMAL_COMMA_RE.sub(_replace_decimal, text)
     text = _NUMBER_RE.sub(_replace_number, text)
 
     text = _replace_english_terms(text)
