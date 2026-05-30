@@ -698,6 +698,42 @@ html[data-theme="light"] .icon-sun { display: none; }
 .dash-row { display: grid; gap: 18px; }
 .dash-row-2-1 { grid-template-columns: 2fr 1fr; }
 .dash-row-3 { grid-template-columns: 1fr 1fr 1fr; }
+
+.dash-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 18px;
+    grid-auto-flow: dense;
+}
+.dash-grid > .dash-card { grid-column: span 1; min-width: 0; }
+.dash-grid > .dash-card[data-w="2"] { grid-column: span 2; }
+.dash-grid > .dash-card[data-w="3"] { grid-column: span 3; }
+.dash-grid > .dash-card-hidden { display: none !important; }
+
+.dash-grid > .dash-card-custom { grid-column: span 1; }
+.dash-grid.has-single-custom > .dash-card-custom { grid-column: span 3; }
+
+.dash-card.is-dragging { opacity: 0.4; cursor: grabbing; }
+.dash-card.drop-target {
+    box-shadow: 0 0 0 2px var(--accent-blue, #3b82f6),
+                0 6px 22px rgba(59, 130, 246, 0.25);
+}
+.dash-grid.is-drag-mode > .dash-card { transition: transform 0.15s ease; }
+
+.dcard-drag-handle {
+    cursor: grab;
+    user-select: none;
+    color: var(--text-muted);
+    font-size: 1.05rem;
+    padding: 2px 6px;
+    border-radius: 6px;
+    line-height: 1;
+    opacity: 0.55;
+    transition: opacity 0.15s, background 0.15s;
+}
+.dcard-drag-handle:hover { opacity: 1; background: var(--bg-hover, rgba(0,0,0,0.05)); }
+.dcard-drag-handle:active { cursor: grabbing; }
+
 .dash-card {
     background: var(--bg-card); border: 1px solid var(--border-color);
     border-radius: 14px; padding: 18px; box-shadow: var(--shadow-sm);
@@ -838,6 +874,16 @@ html[data-theme="light"] .icon-sun { display: none; }
 @media (max-width: 1100px) {
     .dash-kpis { grid-template-columns: repeat(3, 1fr); }
     .dash-row-2-1, .dash-row-3 { grid-template-columns: 1fr; }
+    .dash-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .dash-grid > .dash-card[data-w="3"] { grid-column: span 2; }
+    .dash-grid.has-single-custom > .dash-card-custom { grid-column: span 2; }
+}
+@media (max-width: 700px) {
+    .dash-grid { grid-template-columns: 1fr; }
+    .dash-grid > .dash-card,
+    .dash-grid > .dash-card[data-w="2"],
+    .dash-grid > .dash-card[data-w="3"],
+    .dash-grid.has-single-custom > .dash-card-custom { grid-column: span 1; }
 }
 @media (max-width: 760px) {
     .dash-head { gap: 12px; }

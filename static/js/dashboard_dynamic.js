@@ -650,6 +650,8 @@
         initCardAI();
         applyHiddenFromStorage();
         rehydrateCustomCards();
+        applyCardOrder();
+        initDragAndDrop();
     }
 
     function stampUpdated(time) {
@@ -916,17 +918,18 @@
     }
 
     function renderCustomCard(item) {
-        var host = document.getElementById('ai-custom-cards');
+        var host = document.getElementById('dash-grid');
         if (!host) { return; }
-        host.removeAttribute('hidden');
 
         var cardTitle = item.spec.title || item.spec.card_label || 'Maxsus karta';
         var el = document.createElement('div');
         el.className = 'dash-card dash-card-custom';
         el.dataset.customId = item.id;
         el.dataset.baseCard = item.spec.card || '';
+        el.setAttribute('data-w', '1');
         el.innerHTML =
             '<div class="dash-card-head">' +
+                '<span class="dcard-drag-handle" title="Ko\'chirish uchun ushlab tashlang">⋮⋮</span>' +
                 '<span class="dch-icon">✨</span>' +
                 '<h2 class="dch-title">' + escapeHtml(cardTitle) + '</h2>' +
                 '<div class="dch-actions">' +
@@ -938,6 +941,8 @@
             '</div>' +
             '<div class="dash-chart-area" style="position:relative;min-height:280px;"></div>';
         host.appendChild(el);
+        attachDragHandlers(el);
+        updateCustomLayoutClass();
 
         var area = el.querySelector('.dash-chart-area');
         var aiBtn = el.querySelector('.dcard-ai-btn');
@@ -1022,16 +1027,154 @@
         setCustomCards(getCustomCards().filter(function (it) { return it.id !== id; }));
         var el = document.querySelector('.dash-card-custom[data-custom-id="' + id + '"]');
         if (el) { el.remove(); }
-        var host = document.getElementById('ai-custom-cards');
-        if (host && !host.querySelector('.dash-card-custom')) {
-            host.setAttribute('hidden', '');
-        }
+        updateCustomLayoutClass();
+        saveCardOrder();
     }
 
     function removeAllCustomCards() {
         setCustomCards([]);
-        var host = document.getElementById('ai-custom-cards');
-        if (host) { host.innerHTML = ''; host.setAttribute('hidden', ''); }
+        document.querySelectorAll('.dash-card-custom').forEach(function (el) {
+            el.remove();
+        });
+        updateCustomLayoutClass();
+        saveCardOrder();
+    }
+
+    function updateCustomLayoutClass() {
+        var host = document.getElementById('dash-grid');
+        if (!host) { return; }
+        var customs = host.querySelectorAll('.dash-card-custom');
+        host.classList.toggle('has-single-custom', customs.length === 1);
+    }
+
+    var ORDER_KEY = 'ai_dash_card_order_v1';
+
+    function cardKey(el) {
+        if (!el) { return null; }
+        if (el.dataset.customId) { return 'c:' + el.dataset.customId; }
+        if (el.dataset.card) { return 'd:' + el.dataset.card; }
+        return null;
+    }
+
+    function getSavedOrder() {
+        try { return JSON.parse(localStorage.getItem(ORDER_KEY)) || []; }
+        catch (e) { return []; }
+    }
+
+    function saveCardOrder() {
+        var host = document.getElementById('dash-grid');
+        if (!host) { return; }
+        var keys = [];
+        host.querySelectorAll(':scope > .dash-card').forEach(function (el) {
+            var k = cardKey(el);
+            if (k) { keys.push(k); }
+        });
+        try { localStorage.setItem(ORDER_KEY, JSON.stringify(keys)); }
+        catch (e) {}
+    }
+
+    function applyCardOrder() {
+        var host = document.getElementById('dash-grid');
+        if (!host) { return; }
+        var saved = getSavedOrder();
+        if (!saved.length) { return; }
+        var byKey = {};
+        host.querySelectorAll(':scope > .dash-card').forEach(function (el) {
+            var k = cardKey(el);
+            if (k) { byKey[k] = el; }
+        });
+        saved.forEach(function (k) {
+            if (byKey[k]) {
+                host.appendChild(byKey[k]);
+                delete byKey[k];
+            }
+        });
+    }
+
+    var DRAG = { src: null };
+
+    function ensureDragHandle(cardEl) {
+        var head = cardEl.querySelector(':scope > .dash-card-head');
+        if (!head) { return; }
+        if (head.querySelector('.dcard-drag-handle')) { return; }
+        var handle = document.createElement('span');
+        handle.className = 'dcard-drag-handle';
+        handle.title = 'Ko\'chirish uchun ushlab tashlang';
+        handle.textContent = '⋮⋮';
+        head.insertBefore(handle, head.firstChild);
+    }
+
+    function attachDragHandlers(cardEl) {
+        if (!cardEl || cardEl.dataset.dragBound === '1') { return; }
+        cardEl.dataset.dragBound = '1';
+        cardEl.setAttribute('draggable', 'true');
+
+        cardEl.addEventListener('dragstart', function (e) {
+            var t = e.target;
+            if (t && t !== cardEl && t.closest &&
+                t.closest('button, input, select, textarea, a, table, canvas, .dcard-ai, .dash-toggle')) {
+                e.preventDefault();
+                return;
+            }
+            DRAG.src = cardEl;
+            cardEl.classList.add('is-dragging');
+            var host = document.getElementById('dash-grid');
+            if (host) { host.classList.add('is-drag-mode'); }
+            try {
+                e.dataTransfer.effectAllowed = 'move';
+                e.dataTransfer.setData('text/plain', cardKey(cardEl) || '');
+            } catch (err) {}
+        });
+
+        cardEl.addEventListener('dragend', function () {
+            cardEl.classList.remove('is-dragging');
+            document.querySelectorAll('.dash-card.drop-target').forEach(function (el) {
+                el.classList.remove('drop-target');
+            });
+            var host = document.getElementById('dash-grid');
+            if (host) { host.classList.remove('is-drag-mode'); }
+            DRAG.src = null;
+            saveCardOrder();
+        });
+
+        cardEl.addEventListener('dragover', function (e) {
+            if (!DRAG.src || DRAG.src === cardEl) { return; }
+            e.preventDefault();
+            try { e.dataTransfer.dropEffect = 'move'; } catch (err) {}
+            cardEl.classList.add('drop-target');
+        });
+
+        cardEl.addEventListener('dragleave', function (e) {
+            if (e.relatedTarget && cardEl.contains(e.relatedTarget)) { return; }
+            cardEl.classList.remove('drop-target');
+        });
+
+        cardEl.addEventListener('drop', function (e) {
+            if (!DRAG.src || DRAG.src === cardEl) { return; }
+            e.preventDefault();
+            cardEl.classList.remove('drop-target');
+            var host = document.getElementById('dash-grid');
+            if (!host) { return; }
+            var rect = cardEl.getBoundingClientRect();
+            var after = (e.clientY - rect.top) > rect.height / 2 ||
+                        (e.clientX - rect.left) > rect.width / 2;
+            if (after && cardEl.nextSibling) {
+                host.insertBefore(DRAG.src, cardEl.nextSibling);
+            } else if (after) {
+                host.appendChild(DRAG.src);
+            } else {
+                host.insertBefore(DRAG.src, cardEl);
+            }
+        });
+    }
+
+    function initDragAndDrop() {
+        var host = document.getElementById('dash-grid');
+        if (!host) { return; }
+        host.querySelectorAll(':scope > .dash-card').forEach(function (el) {
+            ensureDragHandle(el);
+            attachDragHandlers(el);
+        });
     }
 
     function rebuildCustomSpec(item) {
@@ -1081,11 +1224,13 @@
     }
 
     function rehydrateCustomCards() {
-        var host = document.getElementById('ai-custom-cards');
+        var host = document.getElementById('dash-grid');
         if (!host) { return; }
-        host.innerHTML = '';
+        host.querySelectorAll('.dash-card-custom').forEach(function (el) {
+            el.remove();
+        });
         var items = getCustomCards();
-        if (!items.length) { host.setAttribute('hidden', ''); return; }
+        if (!items.length) { updateCustomLayoutClass(); return; }
         var refreshed = items.map(rebuildCustomSpec);
         setCustomCards(refreshed);
         refreshed.forEach(renderCustomCard);
@@ -1163,6 +1308,7 @@
             arr.push(item);
             setCustomCards(arr);
             renderCustomCard(item);
+            saveCardOrder();
             return;
         }
         if (action === 'remove_custom_card' && card) {
@@ -1178,10 +1324,8 @@
                     el.remove();
                 }
             });
-            var host = document.getElementById('ai-custom-cards');
-            if (host && !host.querySelector('.dash-card-custom')) {
-                host.setAttribute('hidden', '');
-            }
+            updateCustomLayoutClass();
+            saveCardOrder();
             return;
         }
         if (action === 'remove_all_custom') { removeAllCustomCards(); return; }

@@ -45,9 +45,9 @@
         </div>
     </div>
 
-    <div class="dash-row dash-row-2-1">
-        
-        <div class="dash-card" data-card="funnel">
+    <div class="dash-grid" id="dash-grid">
+
+        <div class="dash-card" data-card="funnel" data-w="2">
             <div class="dash-card-head">
                 <span class="dch-icon">🔻</span>
                 <h2 class="dch-title">Savdo voronkasi (Funnel)</h2>
@@ -86,7 +86,7 @@
             </div>
         </div>
 
-        <div class="dash-card" data-card="conversions">
+        <div class="dash-card" data-card="conversions" data-w="1">
             <div class="dash-card-head">
                 <span class="dch-icon">📈</span>
                 <h2 class="dch-title">Asosiy konversiyalar</h2>
@@ -109,11 +109,8 @@
                 {% endfor %}
             </div>
         </div>
-    </div>
 
-    <div class="dash-row dash-row-2-1">
-        
-        <div class="dash-card" data-card="managers">
+        <div class="dash-card" data-card="managers" data-w="2">
             <div class="dash-card-head">
                 <span class="dch-icon">🏆</span>
                 <h2 class="dch-title">Menejerlar reytingi</h2>
@@ -163,7 +160,7 @@
             </div>
         </div>
 
-        <div class="dash-card" data-card="finance">
+        <div class="dash-card" data-card="finance" data-w="1">
             <div class="dash-card-head">
                 <span class="dch-icon">💰</span>
                 <h2 class="dch-title">Moliy ko'rsatkichlar</h2>
@@ -191,11 +188,8 @@
                 </div>
             </div>
         </div>
-    </div>
 
-    <div class="dash-row dash-row-2-1">
-        
-        <div class="dash-card" data-card="daily">
+        <div class="dash-card" data-card="daily" data-w="2">
             <div class="dash-card-head">
                 <span class="dch-icon">📊</span>
                 <h2 class="dch-title">Kunlik dinamika</h2>
@@ -209,7 +203,7 @@
             </div>
         </div>
 
-        <div class="dash-card" data-card="loss">
+        <div class="dash-card" data-card="loss" data-w="1">
             <div class="dash-card-head">
                 <span class="dch-icon">❌</span>
                 <h2 class="dch-title">Sotib olmadi (sabablar)</h2>
@@ -234,11 +228,8 @@
                 {% endfor %}
             </div>
         </div>
-    </div>
 
-    <div class="dash-row dash-row-3">
-        
-        <div class="dash-card" data-card="followup">
+        <div class="dash-card" data-card="followup" data-w="1">
             <div class="dash-card-head">
                 <span class="dch-icon">📋</span>
                 <h2 class="dch-title">Qoldirilganlar (Follow-up)</h2>
@@ -268,7 +259,7 @@
             </div>
         </div>
 
-        <div class="dash-card">
+        <div class="dash-card" data-card="insight" data-w="1">
             <div class="dash-card-head">
                 <span class="dch-icon">💡</span>
                 <h2 class="dch-title">Insight</h2>
@@ -288,7 +279,7 @@
             </div>
         </div>
 
-        <div class="dash-card" data-card="best_days">
+        <div class="dash-card" data-card="best_days" data-w="1">
             <div class="dash-card-head">
                 <span class="dch-icon">📅</span>
                 <h2 class="dch-title">Eng yaxshi kunlar</h2>
@@ -317,10 +308,8 @@
                 </table>
             </div>
         </div>
+
     </div>
-
-
-    <div id="ai-custom-cards" class="dash-row dash-row-1" hidden></div>
 
 </div>
 
