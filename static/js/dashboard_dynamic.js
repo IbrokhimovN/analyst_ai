@@ -1333,6 +1333,23 @@
         if (action === 'hide_all_cards') { hideAllMainCards(); return; }
         if (action === 'refresh_dashboard') { loadDashboard(); return; }
         if (action === 'open_ai_panel' && card) { toggleAiPanel(card); return; }
+        if (action === 'set_period') {
+            var p = (cmd.period || '').trim();
+            if (typeof window.setPeriod === 'function') {
+                window.setPeriod(p || 'all');
+                if (typeof highlightPeriod === 'function') {
+                    try { highlightPeriod(); } catch (e) {}
+                }
+            }
+            return;
+        }
+        if (action === 'set_source') {
+            var sv = (cmd.source || '').trim();
+            if (typeof window.setCrmSource === 'function') {
+                window.setCrmSource(sv);
+            }
+            return;
+        }
     });
 
     document.addEventListener('DOMContentLoaded', function () {

@@ -243,9 +243,20 @@
             set_card_view: 'kartasi o\'zgartirildi',
             refresh_dashboard: 'dashboard yangilandi',
             open_ai_panel: 'AI panel ochildi',
+            add_custom_card: 'yangi karta qo\'shildi',
+            remove_custom_card: 'karta o\'chirildi',
+            remove_all_custom: 'maxsus kartalar tozalandi',
+            show_all_cards: 'barcha kartalar qaytarildi',
+            hide_all_cards: 'barcha kartalar yashirildi',
+            add_all_default_charts: 'default chartlar qo\'shildi',
+            set_period: 'vaqt filtri o\'zgartirildi',
+            set_source: 'CRM manbai o\'zgartirildi',
         };
         var what = labels[cmd.action] || cmd.action;
-        p.textContent = icon + ' ' + (cmd.card ? cmd.card + ' — ' : '') + what;
+        var extra = '';
+        if (cmd.action === 'set_period' && cmd.period) { extra = ' (' + cmd.period + ')'; }
+        if (cmd.action === 'set_source') { extra = ' (' + (cmd.source || 'all') + ')'; }
+        p.textContent = icon + ' ' + (cmd.card ? cmd.card + ' — ' : '') + what + extra;
         targetEl.appendChild(p);
     }
 

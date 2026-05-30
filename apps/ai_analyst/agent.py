@@ -149,6 +149,21 @@ ASOSIY QOIDALAR (qat'iy)
 3. **Avval tool, keyin javob.** Statistik savolga avval kerakli tool'larni
    chaqiring, natijani o'qing, keyin javob yozing.
 
+4. ⛔ **HARAKAT TOOL'INI CHAQIRMASDAN "Bajarildi/Yashirildi/Qo'shildi/
+   O'zgartirildi" DEB YOZISH QAT'IY TAQIQLANGAN.** Agar foydalanuvchi
+   "yashir", "ko'rsat", "qo'sh", "o'chir", "yarat", "yasa", "qil",
+   "o'zgartir", "almashtir", "tozala", "qaytar", "chiqar" so'zlarini
+   ishlatsa — siz AVVAL `dashboard_command` tool'ini chaqirasiz, undan
+   keyin javob yozasiz. Tool chaqiruvi muvaffaqiyatli natija qaytarmaguncha
+   "bajarildi" deb yozmang. Agar tool xato qaytarsa — xato matnini
+   foydalanuvchiga aniq aytib bering, "bajarildi" demang.
+
+5. **Ko'plik harakat so'rovida — har bir element uchun alohida tool
+   chaqiruvi.** "Hamma kartalarni X qil" desa, 8 ta `dashboard_command`
+   chaqiruvini ketma-ket bajaring (yoki `add_all_default_charts` action'ni
+   bir marta chaqiring). "Bo'ldi" deb to'xtab matn yozmang — tool'larni
+   to'liq bajaring.
+
 4. **Javob o'zbek tilida, qisqa va aniq.** Markdown ishlating: sarlavhalar,
    bullet, **qalin** raqamlar. Iloji boricha jadval ishlating.
 
@@ -242,13 +257,18 @@ ishlatiladi.
 
    • `add_custom_card` — foydalanuvchi YANGI karta qo'shishni so'raganda.
      Belgilar: "yangi", "qo'sh", "yarat", "boshqa", "yana", "ko'rsat", "qil",
-     "chiqar". Misol so'rovlar:
+     "chiqar", "chiqarib ber", "yasab ber", "yasa", "yetishmayotgan",
+     "yo'q kartalarni", "ko'rinmagan", "qo'shimcha", "qo'shimchalar".
+     Misol so'rovlar:
      - "yangi karta yarat — bar chart bilan"
      - "boshqa pie chart qo'sh"
      - "menejerlarni pie chartda ko'rsat"
      - "kunlik sotuvlarni bar chart qil"
+     - "yetishmayotgan chartlarni yasab ber"
+     - "hamma kartalarni grafik ko'rinishda chiqarib ber"
 
-   • `set_card_view` — foydalanuvchi MAVJUD kartani o'zgartirishni so'raganda.
+   • `set_card_view` — foydalanuvchi MAVJUD kartani o'zgartirishni so'raganda
+     va FAQAT BITTA aniq karta nomi tilga olinganda.
      Belgilar: "shu", "buni", "uni", "kartani", "o'zgartir", "almashtir",
      "qayta", "endi", "hozir". Misol so'rovlar:
      - "shu kartani line chartga o'zgartir"
@@ -256,8 +276,13 @@ ishlatiladi.
      - "endi shu kartani bar qil"
      - "menejerlar kartasini doughnut qil"
 
-   ⚠️ Agar shubha bo'lsa va foydalanuvchi grafik turini o'zgartirayotgan
-   bo'lsa — `set_card_view` ni ishlating, chunki bu mavjud kartani yangilaydi.
+   ⚠️ **Shubha bo'lsa — `add_custom_card` ni tanlang.** Asl kartani
+   buzmaslik xavfsizroq. `set_card_view` faqat foydalanuvchi aniq "shu",
+   "buni", "kartani o'zgartir" desa va FAQAT BITTA karta haqida gapirsa.
+
+   ⚠️ **"Hammasi", "barchasi", "har biri", "yetishmayotgan", "yo'q" so'zlari
+   bilan ko'plik so'rov bo'lsa — `add_all_default_charts` action'ni
+   ishlating** (8 ta default karta uchun avtomatik chart qo'shadi).
 
    Misollar:
    • "Loss kartasini yashir" →
@@ -276,10 +301,55 @@ ishlatiladi.
      `dashboard_command(action='add_custom_card', card='daily',
      view_type='barChart', metric='leads',
      metrics=['leads', 'sales'], title='Kunlik dinamika')`.
+   • "Yetishmayotgan chartlarni hammasini yasab ber" / "Hamma kartalarni
+     grafik ko'rinishda chiqar" →
+     `dashboard_command(action='add_all_default_charts')`.
    • "Hamma kartalarni tozala" →
      `dashboard_command(action='remove_all_custom')`.
    • "Barcha kartalarni qaytar" →
      `dashboard_command(action='show_all_cards')`.
+
+   **FILTER (period/source) BOSHQARUVI**
+
+   `set_period` — dashboard vaqt oralig'ini o'zgartiradi. Parametrlar:
+     - `period` — `day | week | month | all` (yoki bo'sh, `all` deb hisoblanadi)
+     - YOKI `date_from` + `date_to` — `YYYY-MM-DD` formatida oraliq
+
+   **Sana parsing qoidalari** (BUGUNGI SANA system prompt boshida ko'rsatilgan):
+     - "haftalik" / "shu hafta" → `period='week'`
+     - "oylik" / "shu oy" / "bu oy" → `period='month'`
+     - "kunlik" / "bugungi" / "bugun" → `period='day'`
+     - "barcha vaqt" / "hammasi" / "filter bekor" → `period='all'`
+     - "1-30 may" → `date_from='YYYY-05-01', date_to='YYYY-05-30'`
+       (YYYY — bugungi yil; agar may o'tib ketgan bo'lsa va kontekstdan o'tgan
+       yil aniq bo'lsa, o'tgan yilni ishlating)
+     - "iyul oyi" → `date_from='YYYY-07-01', date_to='YYYY-07-31'`
+     - "2026 yil 5 fevral" → `date_from='2026-02-05', date_to='2026-02-05'`
+     - "oxirgi 3 oy" → `date_from=<bugungi sanadan 90 kun oldin>,
+       date_to=<bugun>`
+
+   `set_source` — dashboard CRM manbai filtri:
+     - `source_value='amocrm'` — faqat AmoCRM lidlari
+     - `source_value='bitrix'` — faqat Bitrix lidlari
+     - `source_value='all'` yoki bo'sh — barcha manbalar
+
+   Misollar:
+   • "Haftalik statistikalarni ko'rsat" →
+     `dashboard_command(action='set_period', period='week')`.
+   • "Oylik dinamikani chiqar" →
+     `dashboard_command(action='set_period', period='month')`.
+   • "1-30 maydagi statistikalarni ko'rsat" →
+     `dashboard_command(action='set_period',
+     date_from='YYYY-05-01', date_to='YYYY-05-30')`.
+   • "Faqat AmoCRM ma'lumotlarini ko'rsat" →
+     `dashboard_command(action='set_source', source_value='amocrm')`.
+   • "Filterlarni bekor qil" →
+     `dashboard_command(action='set_period', period='all')`.
+
+   ⚠️ Filter o'zgargandan keyin dashboard avtomatik yangilanadi. Foydalanuvchi
+   yangi davr uchun aniq tahlil so'rasa — qisqa tasdiq yozing
+   ("✅ Filter haftalikga o'rnatildi"), aniq raqamlarni qaytadan tool orqali
+   olishingiz shart emas (bu eski period bo'yicha bo'lardi).
 
 ══════════════════════════════════════════════════════════════════════════
 XULOSA STILI
@@ -366,17 +436,72 @@ def chat_with_agent(question: str, manager_id: int = 0,
 
     def _dashboard_command_tool(action='', card='', view_type='bar',
                                  metric='', metrics=None, sort_by='',
-                                 sort_dir='desc', limit=0, title='') -> str:
+                                 sort_dir='desc', limit=0, title='',
+                                 period='', date_from='', date_to='',
+                                 source_value='') -> str:
         action = (action or '').strip()
         valid_actions = {
             'show_card', 'hide_card', 'set_card_view',
             'refresh_dashboard', 'open_ai_panel',
             'show_all_cards', 'hide_all_cards',
             'add_custom_card', 'remove_custom_card', 'remove_all_custom',
+            'add_all_default_charts',
+            'set_period', 'set_source',
         }
         if action not in valid_actions:
             return (f'Xato: action "{action}" noma\'lum. '
                     f'Mavjud: {", ".join(sorted(valid_actions))}.')
+
+        if action == 'set_period':
+            period_val, err = _normalize_period(period, date_from, date_to)
+            if err:
+                return f'Xato: {err}'
+            commands.append({'action': 'set_period',
+                             'period': period_val})
+            return (f'Dashboard filter o\'rnatildi: period={period_val}. '
+                    'Dashboard avtomatik yangilanadi.')
+
+        if action == 'set_source':
+            allowed = {'', 'amocrm', 'bitrix'}
+            sv = (source_value or '').strip().lower()
+            if sv == 'all':
+                sv = ''
+            if sv not in allowed:
+                return (f'Xato: source "{source_value}" noto\'g\'ri. '
+                        f'Mavjud: amocrm, bitrix, all (yoki bo\'sh).')
+            commands.append({'action': 'set_source', 'source': sv})
+            return (f'Dashboard manbai o\'rnatildi: source="{sv or "all"}". '
+                    'Dashboard avtomatik yangilanadi.')
+
+        if action == 'add_all_default_charts':
+            added_keys = []
+            skipped = []
+            for c_key in _DEFAULT_CHART_PRESETS:
+                preset = _DEFAULT_CHART_PRESETS[c_key]
+                spec, err = _build_chat_chart_spec(
+                    card=c_key,
+                    view_type=preset['view_type'],
+                    metric=preset['metric'],
+                    metrics=list(preset['metrics']),
+                    sort_by=preset.get('sort_by', ''),
+                    sort_dir=preset.get('sort_dir', 'desc'),
+                    limit=int(preset.get('limit', 0)),
+                    title=preset.get('title', ''),
+                    source=source, period=period,
+                )
+                if err:
+                    logger.warning('add_all_default_charts skip %s: %s',
+                                   c_key, err)
+                    skipped.append(f'{c_key} ({err})')
+                    continue
+                commands.append({'action': 'add_custom_card',
+                                 'card': c_key, 'spec': spec})
+                added_keys.append(c_key)
+            msg = (f'Dashboard\'ga {len(added_keys)} ta default chart '
+                   f'qo\'shildi: {", ".join(added_keys) or "—"}.')
+            if skipped:
+                msg += f' O\'tkazib yuborildi: {"; ".join(skipped)}.'
+            return msg
 
         no_card_actions = {'refresh_dashboard', 'show_all_cards',
                             'hide_all_cards', 'remove_all_custom'}
@@ -417,7 +542,8 @@ def chat_with_agent(question: str, manager_id: int = 0,
         action: str = Field(description=(
             'Buyruq: show_card | hide_card | set_card_view | refresh_dashboard'
             ' | open_ai_panel | show_all_cards | hide_all_cards | '
-            'add_custom_card | remove_custom_card | remove_all_custom.'))
+            'add_custom_card | remove_custom_card | remove_all_custom | '
+            'add_all_default_charts | set_period | set_source.'))
         card: str = Field(default='', description=(
             'Karta kaliti (show_all_cards/hide_all_cards/refresh_dashboard/'
             'remove_all_custom uchun bo\'sh; add_custom_card/set_card_view '
@@ -430,6 +556,14 @@ def chat_with_agent(question: str, manager_id: int = 0,
         sort_dir: str = Field(default='desc', description='set_card_view uchun.')
         limit: int = Field(default=0, description='set_card_view uchun.')
         title: str = Field(default='', description='set_card_view uchun.')
+        period: str = Field(default='', description=(
+            'set_period uchun: day | week | month | all (yoki bo\'sh).'))
+        date_from: str = Field(default='', description=(
+            'set_period uchun oraliq boshlanishi (YYYY-MM-DD).'))
+        date_to: str = Field(default='', description=(
+            'set_period uchun oraliq tugashi (YYYY-MM-DD).'))
+        source_value: str = Field(default='', description=(
+            'set_source uchun: amocrm | bitrix | all (yoki bo\'sh).'))
 
     extra_tools = [
         StructuredTool.from_function(
@@ -450,7 +584,24 @@ def chat_with_agent(question: str, manager_id: int = 0,
                                   input_key='input', output_key='output')
     history_msgs = mem.chat_memory.messages
 
-    system_prompt = _CHAT_SYSTEM_PROMPT + (_VOICE_MODE_SUFFIX if is_voice else '')
+    from datetime import date
+    today = date.today()
+    weekday_uz = ['Dushanba', 'Seshanba', 'Chorshanba', 'Payshanba',
+                  'Juma', 'Shanba', 'Yakshanba'][today.weekday()]
+    month_uz = ['', 'Yanvar', 'Fevral', 'Mart', 'Aprel', 'May', 'Iyun',
+                'Iyul', 'Avgust', 'Sentyabr', 'Oktyabr', 'Noyabr',
+                'Dekabr'][today.month]
+    date_header = (
+        f'\n══════════════════════════════════════════════════════════════════════════\n'
+        f'BUGUNGI SANA: {today.isoformat()} ({weekday_uz}, '
+        f'{today.day}-{month_uz} {today.year}-yil).\n'
+        f'Joriy yil: {today.year}. Joriy oy: {today.month} ({month_uz}).\n'
+        f'Sana parsingda shu yilni ishlating, agar foydalanuvchi aniq '
+        f'boshqa yilni aytmasa.\n'
+        f'══════════════════════════════════════════════════════════════════════════\n'
+    )
+    system_prompt = (_CHAT_SYSTEM_PROMPT + date_header +
+                     (_VOICE_MODE_SUFFIX if is_voice else ''))
     prompt = ChatPromptTemplate.from_messages([
         ('system', system_prompt),
         MessagesPlaceholder('history'),
@@ -477,6 +628,34 @@ def chat_with_agent(question: str, manager_id: int = 0,
     steps = [getattr(a, 'tool', 'tool')
              for a, _ in result.get('intermediate_steps', [])]
 
+    if _is_action_intent(question) and not commands:
+        logger.warning(
+            'Chat agent: foydalanuvchi harakat so\'radi lekin '
+            'dashboard_command chaqirilmadi. Retry qilinmoqda. q=%r',
+            question[:120])
+        retry_prompt = (
+            f'{question}\n\n'
+            '[TIZIM ESLATMASI: Oldingi javobingizda dashboard_command '
+            'tool\'ini chaqirmadingiz. Bu so\'rov harakat talab qiladi. '
+            'Endi tool\'ni chaqiring va to\'g\'ri bajarishga harakat qiling.]'
+        )
+        try:
+            result2 = executor.invoke({'input': retry_prompt,
+                                        'history': history_msgs})
+            output2 = result2['output']
+            if isinstance(output2, list):
+                output2 = '\n'.join(
+                    b.get('text', '') if isinstance(b, dict) else str(b)
+                    for b in output2
+                )
+            steps2 = [getattr(a, 'tool', 'tool')
+                      for a, _ in result2.get('intermediate_steps', [])]
+            steps = steps + steps2
+            if commands:
+                output = output2 or output
+        except Exception as exc:
+            logger.warning('Retry xato: %s', exc)
+
     try:
         memory_mod.save_turn(manager_id, question, output)
     except Exception as exc:
@@ -486,6 +665,76 @@ def chat_with_agent(question: str, manager_id: int = 0,
                 manager_id, steps, len(chart_specs), len(commands))
     return {'answer': output, 'sources': [], 'used_rag': False,
             'steps': steps, 'charts': chart_specs, 'commands': commands}
+
+_ACTION_TRIGGERS = (
+    'yashir', 'ko\'rsat', 'qo\'sh', 'o\'chir', 'yarat', 'yasa', 'yasab',
+    'qil ', 'qilib', 'qiling', 'o\'zgartir', 'almashtir', 'tozala',
+    'qaytar', 'chiqar', 'chiqarib', 'yetishmayotgan', 'olib tashla',
+    'pie qil', 'bar qil', 'line qil', 'doughnut qil', 'jadval qil',
+    'grafik qil', 'chart qil',
+    'haftalik', 'oylik', 'kunlik', 'oraliq', 'maydagi', 'iyundagi',
+    'iyuldagi', 'fevraldagi', 'martdagi', 'apreldagi', 'avgustdagi',
+    'sentyabrdagi', 'oktyabrdagi', 'noyabrdagi', 'dekabrdagi',
+    'yanvardagi', 'amocrm', 'bitrix', 'filter', 'oraliq qil',
+    'shu hafta', 'shu oy', 'bugun', 'kechagi',
+)
+
+def _is_action_intent(text: str) -> bool:
+    if not text:
+        return False
+    low = text.lower()
+    return any(trigger in low for trigger in _ACTION_TRIGGERS)
+
+_PERIOD_KEYWORDS = {
+    'all': 'all', 'barcha': 'all', 'hammasi': 'all', 'jami': 'all',
+    'day': 'day', 'kun': 'day', 'kunlik': 'day', 'bugun': 'day',
+    'week': 'week', 'hafta': 'week', 'haftalik': 'week',
+    'month': 'month', 'oy': 'month', 'oylik': 'month',
+}
+
+def _normalize_period(period_raw, date_from, date_to):
+    """
+    Returns (canonical_period, error_or_None).
+    Canonical formats: 'all' (cleared) | 'day' | 'week' | 'month'
+                     | 'range:YYYY-MM-DD:YYYY-MM-DD'
+    """
+    import re
+    from datetime import datetime
+
+    p = (period_raw or '').strip().lower()
+    df = (date_from or '').strip()
+    dt = (date_to or '').strip()
+
+    if df and dt:
+        iso_re = re.compile(r'^\d{4}-\d{2}-\d{2}$')
+        if not iso_re.match(df) or not iso_re.match(dt):
+            return None, ('date_from/date_to formatda emas. '
+                          'YYYY-MM-DD bo\'lishi kerak.')
+        try:
+            d1 = datetime.strptime(df, '%Y-%m-%d').date()
+            d2 = datetime.strptime(dt, '%Y-%m-%d').date()
+        except ValueError as exc:
+            return None, f'sana xato: {exc}'
+        if d1 > d2:
+            d1, d2 = d2, d1
+        return f'range:{d1.isoformat()}:{d2.isoformat()}', None
+
+    if p.startswith('range:'):
+        parts = p.split(':')
+        if len(parts) == 3:
+            return _normalize_period('', parts[1], parts[2])
+        return None, 'range formati: range:YYYY-MM-DD:YYYY-MM-DD'
+
+    canonical = _PERIOD_KEYWORDS.get(p)
+    if canonical:
+        return canonical, None
+
+    if not p and not df and not dt:
+        return 'all', None
+
+    return None, (f'period "{period_raw}" tushunarsiz. '
+                  'Mavjud: day, week, month, all yoki '
+                  'date_from + date_to (YYYY-MM-DD).')
 
 _METRIC_LABELS = {
     'count': 'Soni', 'pct': 'Foiz, %', 'revenue': 'Tushum', 'won': 'Sotuv',
@@ -728,6 +977,49 @@ _CARD_FIELDS = {
 }
 
 CARD_KEYS = tuple(_CARD_FIELDS.keys())
+
+_DEFAULT_CHART_PRESETS = {
+    'funnel': {
+        'view_type': 'funnelChart', 'metric': 'count',
+        'metrics': ['count'], 'sort_by': '', 'sort_dir': 'desc',
+        'limit': 0, 'title': 'Savdo voronkasi — grafik',
+    },
+    'managers': {
+        'view_type': 'barChart', 'metric': 'revenue',
+        'metrics': ['revenue', 'won'], 'sort_by': 'revenue', 'sort_dir': 'desc',
+        'limit': 10, 'title': 'Menejerlar reytingi — grafik',
+    },
+    'conversions': {
+        'view_type': 'doughnutChart', 'metric': 'pct',
+        'metrics': ['pct'], 'sort_by': '', 'sort_dir': 'desc',
+        'limit': 0, 'title': 'Asosiy konversiyalar — grafik',
+    },
+    'daily': {
+        'view_type': 'lineChart', 'metric': 'sales',
+        'metrics': ['leads', 'sales'], 'sort_by': '', 'sort_dir': 'asc',
+        'limit': 0, 'title': 'Kunlik dinamika — grafik',
+    },
+    'loss': {
+        'view_type': 'horizontalBar', 'metric': 'count',
+        'metrics': ['count'], 'sort_by': 'count', 'sort_dir': 'desc',
+        'limit': 10, 'title': 'Yutqazish sabablari — grafik',
+    },
+    'finance': {
+        'view_type': 'barChart', 'metric': 'value',
+        'metrics': ['value'], 'sort_by': '', 'sort_dir': 'desc',
+        'limit': 0, 'title': "Moliy ko'rsatkichlar — grafik",
+    },
+    'followup': {
+        'view_type': 'barChart', 'metric': 'lost',
+        'metrics': ['lost', 'won'], 'sort_by': 'lost', 'sort_dir': 'desc',
+        'limit': 10, 'title': 'Qoldirilgan lidlar — grafik',
+    },
+    'best_days': {
+        'view_type': 'barChart', 'metric': 'won',
+        'metrics': ['leads', 'won'], 'sort_by': '', 'sort_dir': 'desc',
+        'limit': 0, 'title': 'Eng yaxshi kunlar — grafik',
+    },
+}
 
 def _card_data(card, source=None, period=None):
     svc = AnalyticsService()
