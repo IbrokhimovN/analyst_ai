@@ -991,6 +991,16 @@ html[data-theme="light"] .icon-sun { display: none; }
 .dcard-ai-btn:hover { opacity: 0.9; }
 .dcard-ai-btn:active { transform: scale(0.97); }
 
+.dcard-del-btn {
+    border: 1px solid var(--border-color); cursor: pointer; white-space: nowrap;
+    font-family: 'Inter', sans-serif; font-size: 0.74rem; font-weight: 700;
+    padding: 6px 9px; border-radius: 8px;
+    color: #ffffff; background: linear-gradient(135deg, #ef4444, #f97316);
+    border-color: transparent; transition: opacity 0.15s, transform 0.1s;
+}
+.dcard-del-btn:hover { opacity: 0.9; }
+.dcard-del-btn:active { transform: scale(0.97); }
+
 .dcard-ai {
     margin: 0 0 14px; padding: 12px;
     background: var(--bg-input); border: 1px solid var(--border-color);

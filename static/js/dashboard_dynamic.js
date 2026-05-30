@@ -147,98 +147,6 @@
         });
     }
 
-    window.toggleCardView = function (card, btn) {
-        var tableView = document.getElementById(card + '-table-view');
-        var chartView = document.getElementById(card + '-chart-view');
-        if (!tableView || !chartView) { return; }
-
-        var showChart = chartView.hasAttribute('hidden');
-        if (showChart) {
-            tableView.setAttribute('hidden', '');
-            chartView.removeAttribute('hidden');
-            btn.textContent = '📋 Jadval';
-            btn.classList.add('dash-toggle-on');
-            renderToggleChart(card);
-        } else {
-            chartView.setAttribute('hidden', '');
-            tableView.removeAttribute('hidden');
-            btn.textContent = (card === 'funnel' ? '📊 Grafik' : '🥧 Grafik');
-            btn.classList.remove('dash-toggle-on');
-        }
-    };
-
-    function renderToggleChart(card) {
-        if (charts[card] || typeof Chart === 'undefined') { return; }
-        var c = themeColors();
-
-        if (card === 'funnel') {
-            var funnel = readJSON('funnel-data') || [];
-            var fctx = document.getElementById('funnelBarChart');
-            if (!fctx) { return; }
-            charts.funnel = new Chart(fctx, {
-                type: 'bar',
-                data: {
-                    labels: funnel.map(function (s) { return s.name; }),
-                    datasets: [{
-                        label: 'Soni',
-                        data: funnel.map(function (s) { return s.count; }),
-                        backgroundColor: funnel.map(function (s) { return s.color; }),
-                        borderRadius: 6,
-                    }],
-                },
-                options: {
-                    responsive: true, maintainAspectRatio: false,
-                    plugins: {
-                        legend: { display: false },
-                        tooltip: { callbacks: { label: function (ct) {
-                            var s = funnel[ct.dataIndex] || {};
-                            return ct.parsed.y + ' ta  (' + (s.pct || 0) + '%)';
-                        } } },
-                    },
-                    scales: {
-                        x: { ticks: { color: c.tick }, grid: { display: false } },
-                        y: { beginAtZero: true, ticks: { color: c.tick },
-                             grid: { color: c.grid } },
-                    },
-                },
-            });
-        } else if (card === 'managers') {
-            var managers = readJSON('managers-data') || [];
-            var mctx = document.getElementById('managersPieChart');
-            if (!mctx) { return; }
-            var values = managers.map(function (m) { return m.revenue; });
-            var metric = 'Tushum';
-            if (values.every(function (v) { return !v; })) {
-                values = managers.map(function (m) { return m.won; });
-                metric = 'Sotuvlar';
-            }
-            charts.managers = new Chart(mctx, {
-                type: 'pie',
-                data: {
-                    labels: managers.map(function (m) { return m.manager_name; }),
-                    datasets: [{
-                        data: values,
-                        backgroundColor: managers.map(function (_, i) {
-                            return PALETTE[i % PALETTE.length]; }),
-                        borderColor: c.isDark ? '#0a0a1c' : '#ffffff',
-                        borderWidth: 2,
-                    }],
-                },
-                options: {
-                    responsive: true, maintainAspectRatio: false,
-                    plugins: {
-                        legend: { position: 'right',
-                            labels: { color: c.tick, usePointStyle: true,
-                                      font: { family: 'Inter', size: 11 } } },
-                        title: { display: true,
-                            text: 'Menejerlar reytingi — ' + metric,
-                            color: c.tick, font: { family: 'Inter', size: 12 } },
-                    },
-                },
-            });
-        }
-    }
-
     function initCardAI() {
         document.querySelectorAll('.dcard-ai-btn').forEach(function (btn) {
             btn.addEventListener('click', function () {
@@ -1024,6 +932,8 @@
                 '<div class="dch-actions">' +
                     '<button type="button" class="dcard-ai-btn" ' +
                         'title="AI tahlil va ko\'rinish">🤖 AI</button>' +
+                    '<button type="button" class="dcard-del-btn" ' +
+                        'title="Kartani o\'chirish">✖</button>' +
                 '</div>' +
             '</div>' +
             '<div class="dash-chart-area" style="position:relative;min-height:280px;"></div>';
@@ -1031,9 +941,13 @@
 
         var area = el.querySelector('.dash-chart-area');
         var aiBtn = el.querySelector('.dcard-ai-btn');
+        var delBtn = el.querySelector('.dcard-del-btn');
         var baseCard = item.spec.card || item.id;
         aiBtn.addEventListener('click', function () {
             toggleAiPanel(baseCard, el);
+        });
+        delBtn.addEventListener('click', function () {
+            removeCustomCard(item.id);
         });
 
         if (window.AIChartRender && typeof window.AIChartRender.renderInto === 'function') {

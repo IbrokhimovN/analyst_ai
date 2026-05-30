@@ -52,8 +52,6 @@
                 <span class="dch-icon">🔻</span>
                 <h2 class="dch-title">Savdo voronkasi (Funnel)</h2>
                 <div class="dch-actions">
-                    <button type="button" class="dash-toggle" data-card="funnel"
-                            onclick="toggleCardView('funnel', this)">📊 Grafik</button>
                     <button type="button" class="dcard-ai-btn" data-card="funnel"
                             title="AI tahlil va ko'rinish">🤖 AI</button>
                 </div>
@@ -85,10 +83,6 @@
                         </tbody>
                     </table>
                 </div>
-            </div>
-            
-            <div class="dash-view dash-chart-area" id="funnel-chart-view" hidden>
-                <canvas id="funnelBarChart"></canvas>
             </div>
         </div>
 
@@ -124,8 +118,6 @@
                 <span class="dch-icon">🏆</span>
                 <h2 class="dch-title">Menejerlar reytingi</h2>
                 <div class="dch-actions">
-                    <button type="button" class="dash-toggle" data-card="managers"
-                            onclick="toggleCardView('managers', this)">🥧 Grafik</button>
                     <button type="button" class="dcard-ai-btn" data-card="managers"
                             title="AI tahlil va ko'rinish">🤖 AI</button>
                 </div>
@@ -168,10 +160,6 @@
                         {% endfor %}
                     </tbody>
                 </table>
-            </div>
-            
-            <div class="dash-view dash-chart-area" id="managers-chart-view" hidden>
-                <canvas id="managersPieChart"></canvas>
             </div>
         </div>
 
