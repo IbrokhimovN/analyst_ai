@@ -1,7 +1,48 @@
 import logging
+import time
+from concurrent.futures import ThreadPoolExecutor
+from urllib.parse import quote
 
 import requests
 from django.conf import settings
+
+DEAL_SELECT = [
+    "ID", "TITLE", "OPPORTUNITY", "CURRENCY_ID",
+    "STAGE_ID", "CATEGORY_ID", "ASSIGNED_BY_ID",
+    "DATE_CREATE", "DATE_MODIFY", "CLOSEDATE",
+    "CLOSED", "CONTACT_ID", "COMPANY_ID",
+]
+CONTACT_SELECT = [
+    "ID", "NAME", "LAST_NAME", "SECOND_NAME",
+    "PHONE", "EMAIL", "COMPANY_TITLE",
+    "ASSIGNED_BY_ID", "DATE_CREATE", "DATE_MODIFY",
+]
+LEAD_SELECT = [
+    "ID", "TITLE", "NAME", "LAST_NAME",
+    "OPPORTUNITY", "CURRENCY_ID", "STATUS_ID",
+    "ASSIGNED_BY_ID", "DATE_CREATE", "DATE_MODIFY",
+    "PHONE", "EMAIL", "SOURCE_ID",
+]
+
+
+def deal_stage_semantic(status_id: str) -> str:
+    """Bitrix deal bosqichini won/lost/progress ga ajratadi.
+    Bitrix konvensiyasi: WON / C{n}:WON = yutuq; LOSE/APOLOGY / C{n}:LOSE = yo'qotish."""
+    tail = (status_id or "").split(":")[-1].upper()
+    if tail == "WON":
+        return "won"
+    if tail in ("LOSE", "APOLOGY"):
+        return "lost"
+    return "progress"
+
+
+def lead_status_semantic(semantics: str) -> str:
+    """Bitrix lead statusining SEMANTICS belgisi (S/F) bo'yicha tasnif."""
+    if semantics == "S":
+        return "won"
+    if semantics == "F":
+        return "lost"
+    return "progress"
 
 from ..base import BaseCRMAdapter
 
@@ -58,6 +99,164 @@ class Bitrix24Adapter(BaseCRMAdapter):
             "total": total,
             "has_more": next_start is not None,
         }
+
+    @staticmethod
+    def _encode_params(params: dict) -> str:
+        """Bitrix REST query stringini PHP uslubida tuzadi (select[0]=ID...)."""
+        parts = []
+        for key, val in params.items():
+            if isinstance(val, (list, tuple)):
+                for i, v in enumerate(val):
+                    parts.append(f"{key}[{i}]={quote(str(v))}")
+            elif isinstance(val, dict):
+                for k, v in val.items():
+                    parts.append(f"{key}[{k}]={quote(str(v))}")
+            else:
+                parts.append(f"{key}={quote(str(val))}")
+        return "&".join(parts)
+
+    def _batch(self, commands: dict, halt: int = 0, retries: int = 3) -> dict:
+        """Bir HTTP so'rovda 50 tagacha komandani bajaradi (batch).
+        Rate-limit (503/QUERY_LIMIT) bo'lsa kichik backoff bilan qayta uradi."""
+        last_exc = None
+        for attempt in range(retries):
+            try:
+                resp = requests.post(
+                    f"{self.base_url}/batch",
+                    json={"halt": halt, "cmd": commands},
+                    timeout=120,
+                )
+                if resp.status_code == 503:
+                    raise Exception("Bitrix24 rate limit (503)")
+                resp.raise_for_status()
+                data = resp.json()
+                if data.get("error"):
+                    desc = data.get("error_description", data["error"])
+                    raise Exception(f"Bitrix24 batch: {desc}")
+                return data.get("result", {})
+            except Exception as exc:
+                last_exc = exc
+                time.sleep(0.5 * (attempt + 1))
+        raise last_exc
+
+    def _fetch_all_raw(self, method: str, select: list, workers: int = 6,
+                       extra_filter: dict = None) -> list:
+        """Barcha sahifalarni batch + parallel orqali tortadi.
+        50 komanda = 2500 yozuv/batch; batchlar bir vaqtda yuboriladi.
+        extra_filter berilsa (masalan {'>=DATE_MODIFY': '...'}) faqat shu yozuvlar tortiladi."""
+        base_params = {"select": select, "order": {"ID": "ASC"}}
+        if extra_filter:
+            base_params["filter"] = extra_filter
+
+        first = self._list_all(method, params=dict(base_params), page=1, limit=50)
+        items = list(first["items"])
+        total = first["total"] or len(items)
+
+        if total <= 50:
+            return items
+
+        offsets = list(range(50, total, 50))
+        # har bir guruh = bitta batch so'rov (50 tagacha offset)
+        groups = [offsets[i:i + 50] for i in range(0, len(offsets), 50)]
+
+        def run_group(chunk):
+            cmd = {
+                f"c{off}": f"{method}?{self._encode_params({**base_params, 'start': off})}"
+                for off in chunk
+            }
+            res = self._batch(cmd)
+            sub = (res.get("result") or {})
+            out = []
+            for off in chunk:
+                out.extend(sub.get(f"c{off}") or [])
+            return out
+
+        with ThreadPoolExecutor(max_workers=workers) as ex:
+            for group_items in ex.map(run_group, groups):
+                items.extend(group_items)
+
+        return items
+
+    @staticmethod
+    def _first_value(field) -> str:
+        if isinstance(field, list) and field:
+            return field[0].get("VALUE", "") or ""
+        return ""
+
+    @classmethod
+    def _normalize_deal(cls, item: dict) -> dict:
+        return {
+            "id": int(item.get("ID", 0)),
+            "name": item.get("TITLE", "") or "",
+            "price": float(item.get("OPPORTUNITY", 0) or 0),
+            "stage_id": item.get("STAGE_ID", "") or "",
+            "pipeline_id": item.get("CATEGORY_ID", 0) or 0,
+            "responsible_user_id": int(item.get("ASSIGNED_BY_ID", 0) or 0),
+            "created_at": item.get("DATE_CREATE"),
+            "updated_at": item.get("DATE_MODIFY"),
+            "closed_at": item.get("CLOSEDATE"),
+            "is_closed": item.get("CLOSED") == "Y",
+            "contact_id": item.get("CONTACT_ID"),
+            "company_id": item.get("COMPANY_ID"),
+            "raw": item,
+        }
+
+    @classmethod
+    def _normalize_contact(cls, item: dict) -> dict:
+        full_name = " ".join(filter(None, [
+            item.get("NAME", ""),
+            item.get("LAST_NAME", ""),
+        ])).strip()
+        return {
+            "id": int(item.get("ID", 0)),
+            "name": full_name or f"Contact #{item.get('ID', '')}",
+            "first_name": item.get("NAME", "") or "",
+            "last_name": item.get("LAST_NAME", "") or "",
+            "phone": cls._first_value(item.get("PHONE")),
+            "email": cls._first_value(item.get("EMAIL")),
+            "company": item.get("COMPANY_TITLE", "") or "",
+            "responsible_user_id": int(item.get("ASSIGNED_BY_ID", 0) or 0),
+            "created_at": item.get("DATE_CREATE"),
+            "updated_at": item.get("DATE_MODIFY"),
+            "raw": item,
+        }
+
+    @classmethod
+    def _normalize_bitrix_lead(cls, item: dict) -> dict:
+        return {
+            "id": int(item.get("ID", 0)),
+            "name": item.get("TITLE", "") or "",
+            "first_name": item.get("NAME", "") or "",
+            "last_name": item.get("LAST_NAME", "") or "",
+            "price": float(item.get("OPPORTUNITY", 0) or 0),
+            "status_id": item.get("STATUS_ID", "") or "",
+            "responsible_user_id": int(item.get("ASSIGNED_BY_ID", 0) or 0),
+            "phone": cls._first_value(item.get("PHONE")),
+            "email": cls._first_value(item.get("EMAIL")),
+            "source_id": item.get("SOURCE_ID", "") or "",
+            "created_at": item.get("DATE_CREATE"),
+            "updated_at": item.get("DATE_MODIFY"),
+            "raw": item,
+        }
+
+    @staticmethod
+    def _since_filter(since):
+        return {">=DATE_MODIFY": since} if since else None
+
+    def get_all_deals(self, since=None) -> list:
+        raw = self._fetch_all_raw("crm.deal.list", DEAL_SELECT,
+                                  extra_filter=self._since_filter(since))
+        return [self._normalize_deal(x) for x in raw]
+
+    def get_all_contacts(self, since=None) -> list:
+        raw = self._fetch_all_raw("crm.contact.list", CONTACT_SELECT,
+                                  extra_filter=self._since_filter(since))
+        return [self._normalize_contact(x) for x in raw]
+
+    def get_all_bitrix_leads(self, since=None) -> list:
+        raw = self._fetch_all_raw("crm.lead.list", LEAD_SELECT,
+                                  extra_filter=self._since_filter(since))
+        return [self._normalize_bitrix_lead(x) for x in raw]
 
     def create_lead(self, data: dict) -> dict:
         fields = {
@@ -268,6 +467,7 @@ class Bitrix24Adapter(BaseCRMAdapter):
                         "name": s.get("NAME", ""),
                         "sort": int(s.get("SORT", 0)),
                         "color": s.get("COLOR", ""),
+                        "semantic": deal_stage_semantic(s.get("STATUS_ID", "")),
                     }
                     for s in default_statuses
                 ]
@@ -298,6 +498,7 @@ class Bitrix24Adapter(BaseCRMAdapter):
                             "name": s.get("NAME", ""),
                             "sort": int(s.get("SORT", 0)),
                             "color": s.get("COLOR", ""),
+                            "semantic": deal_stage_semantic(s.get("STATUS_ID", "")),
                         }
                         for s in cat_statuses
                     ]
@@ -319,23 +520,36 @@ class Bitrix24Adapter(BaseCRMAdapter):
 
     def get_users(self) -> list:
         try:
-            data = self._call("user.get", {
-                "ACTIVE": True,
-            })
-            if not isinstance(data, list):
-                return []
+            users = []
+            start = 0
+            while True:
+                resp = requests.post(
+                    f"{self.base_url}/user.get",
+                    json={"ACTIVE": True, "start": start},
+                    timeout=30,
+                )
+                resp.raise_for_status()
+                body = resp.json()
+                data = body.get("result")
+                if not isinstance(data, list) or not data:
+                    break
 
-            return [
-                {
-                    "id": int(u.get("ID", 0)),
-                    "name": " ".join(filter(None, [
-                        u.get("NAME", ""),
-                        u.get("LAST_NAME", ""),
-                    ])).strip(),
-                    "email": u.get("EMAIL", ""),
-                }
-                for u in data
-            ]
+                for u in data:
+                    users.append({
+                        "id": int(u.get("ID", 0)),
+                        "name": " ".join(filter(None, [
+                            u.get("NAME", ""),
+                            u.get("LAST_NAME", ""),
+                        ])).strip() or f"User #{u.get('ID', '')}",
+                        "email": u.get("EMAIL", "") or "",
+                    })
+
+                nxt = body.get("next")
+                if nxt is None:
+                    break
+                start = nxt
+
+            return users
         except Exception as e:
             logger.error(f"Bitrix24 foydalanuvchilarni olishda xatolik: {e}")
             return []
@@ -371,6 +585,7 @@ class Bitrix24Adapter(BaseCRMAdapter):
                     "name": s.get("NAME", ""),
                     "sort": int(s.get("SORT", 0)),
                     "color": s.get("COLOR", ""),
+                    "semantic": lead_status_semantic(s.get("SEMANTICS")),
                 }
                 for s in data
             ]
