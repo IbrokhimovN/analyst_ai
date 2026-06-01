@@ -1232,8 +1232,14 @@
         var items = getCustomCards();
         if (!items.length) { updateCustomLayoutClass(); return; }
         var refreshed = items.map(rebuildCustomSpec);
-        setCustomCards(refreshed);
-        refreshed.forEach(renderCustomCard);
+        setCustomCards(refreshed);  // barcha manbalarning kartalari storage'da saqlanadi
+        // Faqat joriy manbaga tegishlilarini ko'rsatamiz.
+        // "Barchasi" (source='') ko'rinishida hammasi chiqadi; har CRM'da faqat o'ziniki.
+        var cur = window.__crmSource || '';
+        refreshed.filter(function (it) {
+            return cur === '' || (it.source || '') === cur;
+        }).forEach(renderCustomCard);
+        updateCustomLayoutClass();
     }
 
     function escapeHtml(s) {
@@ -1303,7 +1309,11 @@
         }
         if (action === 'add_custom_card' && cmd.spec) {
             var baseCard = cmd.card || cmd.spec.card || '';
-            var item = { id: customCardId(baseCard || 'x'), spec: cmd.spec };
+            var item = {
+                id: customCardId(baseCard || 'x'),
+                spec: cmd.spec,
+                source: (window.__crmSource || ''),
+            };
             var arr = getCustomCards();
             arr.push(item);
             setCustomCards(arr);
