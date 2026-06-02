@@ -147,6 +147,57 @@
         });
     }
 
+    function initManagersPagination() {
+        var PAGE_SIZE = 5;
+        var view = document.getElementById('managers-table-view');
+        if (!view) { return; }
+        var tbody = view.querySelector('tbody');
+        if (!tbody) { return; }
+        var rows = Array.prototype.filter.call(
+            tbody.querySelectorAll('tr'),
+            function (tr) { return !tr.querySelector('.dash-empty'); }
+        );
+        // eski pagination boshqaruvini olib tashlaymiz (qayta render bo'lsa)
+        var old = view.querySelector('.dash-pager');
+        if (old) { old.remove(); }
+        if (rows.length <= PAGE_SIZE) { return; }
+
+        var pages = Math.ceil(rows.length / PAGE_SIZE);
+        var cur = 0;
+
+        var pager = document.createElement('div');
+        pager.className = 'dash-pager';
+        var prev = document.createElement('button');
+        prev.type = 'button';
+        prev.className = 'dash-pager-btn';
+        prev.textContent = '‹';
+        var info = document.createElement('span');
+        info.className = 'dash-pager-info';
+        var next = document.createElement('button');
+        next.type = 'button';
+        next.className = 'dash-pager-btn';
+        next.textContent = '›';
+        pager.appendChild(prev);
+        pager.appendChild(info);
+        pager.appendChild(next);
+        view.appendChild(pager);
+
+        function show(p) {
+            cur = Math.max(0, Math.min(p, pages - 1));
+            var start = cur * PAGE_SIZE;
+            var end = start + PAGE_SIZE;
+            rows.forEach(function (tr, i) {
+                tr.style.display = (i >= start && i < end) ? '' : 'none';
+            });
+            info.textContent = (cur + 1) + ' / ' + pages;
+            prev.disabled = cur === 0;
+            next.disabled = cur === pages - 1;
+        }
+        prev.addEventListener('click', function () { show(cur - 1); });
+        next.addEventListener('click', function () { show(cur + 1); });
+        show(0);
+    }
+
     function initCardAI() {
         document.querySelectorAll('.dcard-ai-btn').forEach(function (btn) {
             btn.addEventListener('click', function () {
@@ -647,6 +698,7 @@
     function initDashBody() {
         initDailyChart();
         initLossBars();
+        initManagersPagination();
         initCardAI();
         applyHiddenFromStorage();
         rehydrateCustomCards();

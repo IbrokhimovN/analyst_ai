@@ -150,6 +150,9 @@ class AnalyticsService:
             recent_leads = manager_leads.filter(created_at__gte=start_date)
 
             total = manager_leads.count()
+            if total == 0:
+                # deal/lead biriktirilmagan menejerni kartada ko'rsatmaymiz
+                continue
             won = manager_leads.filter(status_id=WON_STATUS_ID).count()
             lost = manager_leads.filter(status_id=LOST_STATUS_ID).count()
             revenue = manager_leads.filter(

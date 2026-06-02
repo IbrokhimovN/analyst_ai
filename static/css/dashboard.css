@@ -832,6 +832,24 @@ html[data-theme="light"] .icon-sun { display: none; }
 .pill-mid { background: var(--accent-yellow-bg); color: var(--accent-yellow); }
 .pill-low { background: var(--accent-red-bg); color: var(--accent-red); }
 
+.dash-pager {
+    display: flex; align-items: center; justify-content: center; gap: 12px;
+    padding: 12px 8px 4px; margin-top: 6px;
+    border-top: 1px solid var(--border-color);
+}
+.dash-pager-btn {
+    width: 30px; height: 30px; border-radius: 8px; cursor: pointer;
+    border: 1px solid var(--border-color); background: var(--bg-input);
+    color: var(--text-primary); font-size: 1rem; line-height: 1;
+    transition: background 0.15s, opacity 0.15s;
+}
+.dash-pager-btn:hover:not(:disabled) { background: var(--accent-blue); color: #fff; }
+.dash-pager-btn:disabled { opacity: 0.4; cursor: default; }
+.dash-pager-info {
+    font-size: 0.8rem; font-weight: 700; color: var(--text-secondary);
+    min-width: 48px; text-align: center;
+}
+
 .dash-finance { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .dash-fin-box {
     background: var(--bg-input); border: 1px solid var(--border-color);
