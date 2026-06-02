@@ -34,7 +34,8 @@ def build_dashboard_context(source=None, period=None):
 
         managers = service.get_by_manager(source=source, period=period)
         ctx["managers"] = managers
-        ctx["top_managers"] = managers[:5]
+        # barcha menejerlar yuboriladi; frontend 5 tadan paginatsiya qiladi
+        ctx["top_managers"] = managers
 
         ctx["finance"] = service.get_finance(source=source, period=period)
 
