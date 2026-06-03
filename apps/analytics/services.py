@@ -487,3 +487,334 @@ class AnalyticsService:
         })
         return insights
 
+    # ──────────────────────────────────────────────────────────────────
+    #  Kengaytirilgan tahlil metodlari (AI tool'lari uchun)
+    # ──────────────────────────────────────────────────────────────────
+
+    def _period_window(self, period):
+        """period → (start_date, end_date). None/'all' → oxirgi 30 kun."""
+        today = timezone.now().date()
+        parsed = self._parse_period(period)
+        if parsed and parsed[0] == 'range':
+            return parsed[1], parsed[2]
+        if parsed and parsed[0] == 'days':
+            days = parsed[1]
+            return today - timedelta(days=days - 1), today
+        # None yoki 'all' — taqqoslash uchun oxirgi 30 kun
+        return today - timedelta(days=29), today
+
+    def _metrics_for_window(self, source, start, end):
+        qs = Lead.objects.all()
+        if source:
+            qs = qs.filter(source=source)
+        qs = qs.filter(created_at__date__gte=start, created_at__date__lte=end)
+        leads = qs.count()
+        won = qs.filter(status_id=WON_STATUS_ID).count()
+        lost = qs.filter(status_id=LOST_STATUS_ID).count()
+        revenue = float(
+            qs.filter(status_id=WON_STATUS_ID).aggregate(t=Sum('price'))['t']
+            or 0
+        )
+        closed = won + lost
+        return {
+            'leads': leads,
+            'won': won,
+            'lost': lost,
+            'revenue': revenue,
+            'conversion_rate': round(won / closed * 100, 1) if closed else 0,
+        }
+
+    @staticmethod
+    def _delta(cur, prev):
+        diff = round(cur - prev, 1)
+        if prev:
+            pct = round((cur - prev) / abs(prev) * 100, 1)
+        else:
+            pct = None  # oldingi davr 0 — foiz hisoblab bo'lmaydi
+        return {'diff': diff, 'pct': pct,
+                'dir': 'up' if diff > 0 else ('down' if diff < 0 else 'flat')}
+
+    def compare_periods(self, source=None, period=None):
+        """Joriy davrni xuddi shu uzunlikdagi oldingi davr bilan taqqoslaydi."""
+        c_start, c_end = self._period_window(period)
+        length = (c_end - c_start).days + 1
+        p_end = c_start - timedelta(days=1)
+        p_start = p_end - timedelta(days=length - 1)
+
+        cur = self._metrics_for_window(source, c_start, c_end)
+        prev = self._metrics_for_window(source, p_start, p_end)
+
+        deltas = {k: self._delta(cur[k], prev[k]) for k in
+                  ('leads', 'won', 'lost', 'revenue', 'conversion_rate')}
+        return {
+            'current': {**cur, 'from': c_start.isoformat(),
+                        'to': c_end.isoformat()},
+            'previous': {**prev, 'from': p_start.isoformat(),
+                         'to': p_end.isoformat()},
+            'deltas': deltas,
+            'length_days': length,
+            'source': source or 'all',
+        }
+
+    def forecast(self, source=None):
+        """Joriy oy sur'ati asosida oy oxirigacha proyeksiya."""
+        import calendar
+        today = timezone.now().date()
+        month_start = today.replace(day=1)
+        days_in_month = calendar.monthrange(today.year, today.month)[1]
+        days_elapsed = (today - month_start).days + 1
+
+        mtd = self._metrics_for_window(source, month_start, today)
+        factor = days_in_month / days_elapsed if days_elapsed else 1
+
+        def proj(v):
+            return round(v * factor)
+
+        return {
+            'days_elapsed': days_elapsed,
+            'days_in_month': days_in_month,
+            'progress_pct': round(days_elapsed / days_in_month * 100, 1),
+            'so_far': mtd,
+            'projected': {
+                'leads': proj(mtd['leads']),
+                'won': proj(mtd['won']),
+                'lost': proj(mtd['lost']),
+                'revenue': round(mtd['revenue'] * factor),
+            },
+            'daily_pace': {
+                'leads': round(mtd['leads'] / days_elapsed, 1) if days_elapsed else 0,
+                'won': round(mtd['won'] / days_elapsed, 1) if days_elapsed else 0,
+            },
+            'source': source or 'all',
+        }
+
+    def get_manager_detail(self, manager_id, source=None, period=None):
+        """Bitta menejer chuqur profili: KPI + kunlik trend + sabablar."""
+        from apps.amocrm.models import User as AmoCRMUser
+        from django.db.models.functions import TruncDate
+
+        manager_id = int(manager_id)
+        name = (AmoCRMUser.objects.filter(amocrm_id=manager_id)
+                .values_list('name', flat=True).first() or f'#{manager_id}')
+
+        qs = self._base_queryset(source, period).filter(
+            responsible_user_id=manager_id)
+        total = qs.count()
+        won = qs.filter(status_id=WON_STATUS_ID).count()
+        lost = qs.filter(status_id=LOST_STATUS_ID).count()
+        revenue = float(qs.filter(status_id=WON_STATUS_ID)
+                        .aggregate(t=Sum('price'))['t'] or 0)
+        closed = won + lost
+
+        trend = list(
+            qs.exclude(created_at__isnull=True)
+            .annotate(d=TruncDate('created_at'))
+            .values('d')
+            .annotate(leads=Count('id'),
+                      won=Count('id', filter=Q(status_id=WON_STATUS_ID)))
+            .order_by('d')
+        )
+        loss = list(
+            qs.filter(status_id=LOST_STATUS_ID)
+            .exclude(loss_reason='').exclude(loss_reason__isnull=True)
+            .values('loss_reason').annotate(c=Count('id')).order_by('-c')[:5]
+        )
+
+        return {
+            'manager_id': manager_id,
+            'manager_name': name,
+            'total_leads': total,
+            'won': won,
+            'lost': lost,
+            'revenue': revenue,
+            'conversion_rate': round(won / closed * 100, 1) if closed else 0,
+            'trend': [{'date': r['d'].isoformat(), 'leads': r['leads'],
+                       'won': r['won']} for r in trend],
+            'loss_reasons': [{'reason': r['loss_reason'], 'count': r['c']}
+                             for r in loss],
+            'source': source or 'all',
+        }
+
+    def explain_change(self, source=None, period=None):
+        """Joriy vs oldingi davr — o'zgarishga eng ko'p hissa qo'shganlar."""
+        from apps.amocrm.models import User as AmoCRMUser
+
+        c_start, c_end = self._period_window(period)
+        length = (c_end - c_start).days + 1
+        p_end = c_start - timedelta(days=1)
+        p_start = p_end - timedelta(days=length - 1)
+
+        def by_manager(start, end):
+            qs = Lead.objects.filter(status_id=WON_STATUS_ID,
+                                     created_at__date__gte=start,
+                                     created_at__date__lte=end)
+            if source:
+                qs = qs.filter(source=source)
+            return dict(qs.values('responsible_user_id')
+                        .annotate(c=Count('id'))
+                        .values_list('responsible_user_id', 'c'))
+
+        cur = by_manager(c_start, c_end)
+        prev = by_manager(p_start, p_end)
+        ids = set(cur) | set(prev)
+        diffs = [(mid, cur.get(mid, 0) - prev.get(mid, 0)) for mid in ids]
+        diffs = [d for d in diffs if d[1] != 0]
+        diffs.sort(key=lambda x: x[1])
+
+        names = dict(AmoCRMUser.objects.filter(amocrm_id__in=[d[0] for d in diffs])
+                     .values_list('amocrm_id', 'name'))
+
+        def fmt(items):
+            return [{'manager_id': mid,
+                     'manager_name': names.get(mid, f'#{mid}'),
+                     'won_diff': diff} for mid, diff in items]
+
+        total_cur = sum(cur.values())
+        total_prev = sum(prev.values())
+        return {
+            'total_won_current': total_cur,
+            'total_won_previous': total_prev,
+            'overall_diff': total_cur - total_prev,
+            'top_decliners': fmt(diffs[:5]),
+            'top_improvers': fmt(list(reversed(diffs))[:5]),
+            'source': source or 'all',
+        }
+
+    def query_leads(self, source=None, manager_id=None, status=None,
+                    date_from=None, date_to=None, min_price=None, limit=20):
+        """Erkin filtrlangan lid so'rovi (xavfsiz, faqat o'qish)."""
+        from apps.amocrm.models import User as AmoCRMUser
+
+        qs = Lead.objects.all()
+        if source:
+            qs = qs.filter(source=source)
+        if manager_id:
+            qs = qs.filter(responsible_user_id=int(manager_id))
+        if status == 'won':
+            qs = qs.filter(status_id=WON_STATUS_ID)
+        elif status == 'lost':
+            qs = qs.filter(status_id=LOST_STATUS_ID)
+        elif status == 'open':
+            qs = qs.exclude(status_id__in=[WON_STATUS_ID, LOST_STATUS_ID])
+        if date_from:
+            qs = qs.filter(created_at__date__gte=date_from)
+        if date_to:
+            qs = qs.filter(created_at__date__lte=date_to)
+        if min_price:
+            qs = qs.filter(price__gte=min_price)
+
+        limit = max(1, min(int(limit or 20), 100))
+        total = qs.count()
+        rows = list(qs.order_by('-created_at')[:limit].values(
+            'amocrm_id', 'name', 'price', 'status_id',
+            'responsible_user_id', 'created_at', 'loss_reason'))
+        names = dict(AmoCRMUser.objects.filter(
+            amocrm_id__in=[r['responsible_user_id'] for r in rows]
+        ).values_list('amocrm_id', 'name'))
+
+        def label(sid):
+            return ('Sotuv' if sid == WON_STATUS_ID
+                    else 'Yutqazildi' if sid == LOST_STATUS_ID else 'Ochiq')
+
+        return {
+            'total_matched': total,
+            'returned': len(rows),
+            'leads': [{
+                'id': r['amocrm_id'],
+                'name': r['name'],
+                'price': float(r['price'] or 0),
+                'status': label(r['status_id']),
+                'manager': names.get(r['responsible_user_id'],
+                                     f"#{r['responsible_user_id']}"),
+                'created_at': r['created_at'].isoformat() if r['created_at'] else None,
+                'loss_reason': r['loss_reason'] or '',
+            } for r in rows],
+        }
+
+    def get_stuck_deals(self, source=None, days_idle=14, limit=20):
+        """N kundan beri harakatsiz ochiq lidlar (follow-up uchun)."""
+        from apps.amocrm.models import User as AmoCRMUser
+
+        cutoff = timezone.now() - timedelta(days=int(days_idle))
+        qs = Lead.objects.exclude(
+            status_id__in=[WON_STATUS_ID, LOST_STATUS_ID])
+        if source:
+            qs = qs.filter(source=source)
+        qs = qs.filter(updated_at__lt=cutoff)
+
+        total = qs.count()
+        by_mgr = list(qs.values('responsible_user_id')
+                      .annotate(c=Count('id')).order_by('-c')[:limit])
+        names = dict(AmoCRMUser.objects.filter(
+            amocrm_id__in=[r['responsible_user_id'] for r in by_mgr]
+        ).values_list('amocrm_id', 'name'))
+        return {
+            'days_idle': int(days_idle),
+            'total_stuck': total,
+            'by_manager': [{
+                'manager': names.get(r['responsible_user_id'],
+                                     f"#{r['responsible_user_id']}"),
+                'count': r['c'],
+            } for r in by_mgr],
+            'source': source or 'all',
+        }
+
+    def get_sales_cycle(self, source=None, period=None):
+        """Yutilgan lidlarda o'rtacha sotuv sikli (yopilish - ochilish)."""
+        qs = self._base_queryset(source, period).filter(
+            status_id=WON_STATUS_ID,
+            created_at__isnull=False, closed_at__isnull=False)
+        durations = [
+            (c - cr).days for cr, c in
+            qs.values_list('created_at', 'closed_at')
+            if c >= cr
+        ]
+        if not durations:
+            return {'count': 0, 'avg_days': 0, 'median_days': 0,
+                    'min_days': 0, 'max_days': 0, 'source': source or 'all'}
+        durations.sort()
+        n = len(durations)
+        median = (durations[n // 2] if n % 2 else
+                  (durations[n // 2 - 1] + durations[n // 2]) / 2)
+        return {
+            'count': n,
+            'avg_days': round(sum(durations) / n, 1),
+            'median_days': round(median, 1),
+            'min_days': durations[0],
+            'max_days': durations[-1],
+            'source': source or 'all',
+        }
+
+    def get_source_compare(self, period=None):
+        """AmoCRM vs Bitrix yonma-yon."""
+        return {
+            'amocrm': self.get_summary(source='amocrm', period=period),
+            'bitrix': self.get_summary(source='bitrix', period=period),
+        }
+
+    def get_pipeline_breakdown(self, source=None, period=None):
+        """Har bir pipeline (voronka) bo'yicha kesim."""
+        qs = self._base_queryset(source, period)
+        rows = list(
+            qs.values('pipeline_ref__name')
+            .annotate(
+                leads=Count('id'),
+                won=Count('id', filter=Q(status_id=WON_STATUS_ID)),
+                lost=Count('id', filter=Q(status_id=LOST_STATUS_ID)),
+                revenue=Sum('price', filter=Q(status_id=WON_STATUS_ID)),
+            )
+            .order_by('-leads')
+        )
+        result = []
+        for r in rows:
+            closed = r['won'] + r['lost']
+            result.append({
+                'pipeline': r['pipeline_ref__name'] or 'Belgilanmagan',
+                'leads': r['leads'],
+                'won': r['won'],
+                'lost': r['lost'],
+                'revenue': float(r['revenue'] or 0),
+                'conversion_rate': round(r['won'] / closed * 100, 1) if closed else 0,
+            })
+        return result
+

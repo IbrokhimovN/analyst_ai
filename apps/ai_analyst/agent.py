@@ -12,13 +12,23 @@ MAX_ITERATIONS = 8
 _SYSTEM_PROMPT = """Siz savdo bo'limining professional AI tahlilchisisiz.
 Sizga dashboard ma'lumotlarini qaytaruvchi tool'lar berilgan. Avval
 kerakli tool'larni chaqirib ma'lumotlarni yig'ing, keyin tahlil qiling.
+Trend va sabab uchun `period_comparison` va `change_drivers` tool'laridan
+ham foydalaning (faqat hozirgi holat emas, o'zgarishni ham ko'rsating).
 
 Tahlil natijasi quyidagilarni o'z ichiga olishi shart:
-1. Umumiy holat — qisqa baho.
+1. Umumiy holat — qisqa baho (va oldingi davrga nisbatan o'zgarish).
 2. Zaif menejer(lar) — kim past konversiya yoki kam sotuv ko'rsatyapti.
 3. Voronkaning zaif bosqichi — qayerda eng ko'p mijoz yo'qolyapti.
 4. Yutqazish sabablari — agar ma'lumot bo'lsa.
 5. Aniq tavsiyalar — 3-5 ta amaliy qadam.
+
+DOMEN BILIMI: Bitrix manbasida tushum (narx) ko'pincha 0 — bu xato emas,
+tizim lead oqimi va konversiyani yuritadi. Bitrix uchun tushumga urg'u
+bermang; leadlar soni, konversiya, sotuvlar soniga e'tibor bering.
+
+SIFAT: faqat tool raqamlarini ishlating (o'ylab topmang); javobdan oldin
+mantiqni tekshiring (sotuv+yutqazish ≤ jami lead, foiz 0–100); namuna kichik
+bo'lsa buni ochiq ayting.
 
 Javobni o'zbek tilida, Markdown formatda, sarlavhalar bilan bering."""
 
@@ -60,6 +70,33 @@ def _build_tools(source=None, period=None):
 
     def _best_days(_input: str = '') -> str:
         return json.dumps(svc.get_best_days(source=source, period=period),
+                          ensure_ascii=False)
+
+    def _compare(_input: str = '') -> str:
+        return json.dumps(svc.compare_periods(source=source, period=period),
+                          ensure_ascii=False)
+
+    def _forecast(_input: str = '') -> str:
+        return json.dumps(svc.forecast(source=source), ensure_ascii=False)
+
+    def _change(_input: str = '') -> str:
+        return json.dumps(svc.explain_change(source=source, period=period),
+                          ensure_ascii=False)
+
+    def _cycle(_input: str = '') -> str:
+        return json.dumps(svc.get_sales_cycle(source=source, period=period),
+                          ensure_ascii=False)
+
+    def _stuck(_input: str = '') -> str:
+        return json.dumps(svc.get_stuck_deals(source=source, days_idle=14),
+                          ensure_ascii=False)
+
+    def _src_compare(_input: str = '') -> str:
+        return json.dumps(svc.get_source_compare(period=period),
+                          ensure_ascii=False)
+
+    def _pipelines(_input: str = '') -> str:
+        return json.dumps(svc.get_pipeline_breakdown(source=source, period=period),
                           ensure_ascii=False)
 
     return [
@@ -129,6 +166,70 @@ def _build_tools(source=None, period=None):
                 'Hafta kunlari bo\'yicha eng samarali kunlar. Argumentsiz.'
             ),
         ),
+        Tool(
+            name='period_comparison',
+            func=_compare,
+            description=(
+                'Joriy davrni xuddi shu uzunlikdagi OLDINGI davr bilan '
+                'taqqoslaydi: leadlar, sotuvlar, tushum, konversiya — har biri '
+                'uchun farq va foiz o\'zgarish (o\'sdi/tushdi). "O\'tgan hafta/oyga '
+                'nisbatan qanday", "o\'sdimi yoki tushdimi" savollari uchun. Argumentsiz.'
+            ),
+        ),
+        Tool(
+            name='forecast_data',
+            func=_forecast,
+            description=(
+                'Joriy oy sur\'ati asosida oy oxirigacha PROYEKSIYA (kutilayotgan '
+                'leadlar, sotuvlar, tushum) va kunlik temp. "Oy oxirida qancha '
+                'bo\'ladi", "rejaga yetamizmi", "prognoz" savollari uchun. Argumentsiz.'
+            ),
+        ),
+        Tool(
+            name='change_drivers',
+            func=_change,
+            description=(
+                'Joriy vs oldingi davr sotuvlar o\'zgarishiga eng ko\'p hissa '
+                'qo\'shgan menejerlar (kim ko\'tardi, kim tushirdi). "Nega tushdi/'
+                'o\'sdi", "kim sababchi" savollari uchun. Argumentsiz.'
+            ),
+        ),
+        Tool(
+            name='sales_cycle_data',
+            func=_cycle,
+            description=(
+                'Yutilgan bitimlarda o\'rtacha sotuv sikli (lid ochilishidan '
+                'yopilgunigacha kun): o\'rtacha, median, min/max. "Qancha kunda '
+                'sotamiz", "sotuv tezligi" savollari uchun. Argumentsiz.'
+            ),
+        ),
+        Tool(
+            name='stuck_deals_data',
+            func=_stuck,
+            description=(
+                '14 kundan beri harakatsiz turgan OCHIQ lidlar, menejer kesimida '
+                '(follow-up kerak bo\'lganlar). "Qotib qolgan", "tashlab qo\'yilgan", '
+                '"e\'tiborsiz lidlar" savollari uchun. Argumentsiz.'
+            ),
+        ),
+        Tool(
+            name='source_comparison',
+            func=_src_compare,
+            description=(
+                'AmoCRM va Bitrix manbalarini yonma-yon taqqoslaydi (har biri '
+                'uchun leadlar, sotuv, konversiya). "AmoCRM vs Bitrix", "qaysi '
+                'manba yaxshi" savollari uchun. Argumentsiz.'
+            ),
+        ),
+        Tool(
+            name='pipeline_breakdown',
+            func=_pipelines,
+            description=(
+                'Har bir pipeline (voronka/category) bo\'yicha kesim: leadlar, '
+                'sotuv, yutqazish, konversiya. "Qaysi voronka yaxshi", "pipeline '
+                'bo\'yicha" savollari uchun. Argumentsiz.'
+            ),
+        ),
     ]
 
 _CHAT_SYSTEM_PROMPT = """Siz savdo dashboardining proaktiv AI yordamchisisiz.
@@ -196,6 +297,57 @@ MA'LUMOT TOOL'LARI (qachon chaqirish)
 
 • `best_days_data` — hafta kunlari bo'yicha samaradorlik.
    Savollar: "qaysi kuni yaxshi sotamiz", "dushanba/juma qanday".
+
+• `period_comparison` — joriy davr vs oldingi davr (farq + foiz).
+   Savollar: "o'tgan oyga nisbatan", "o'sdimi tushdimi", "qancha % o'zgardi".
+
+• `forecast_data` — oy oxirigacha proyeksiya, kunlik temp.
+   Savollar: "oy oxirida qancha bo'ladi", "rejaga yetamizmi", "prognoz".
+
+• `change_drivers` — o'zgarishga eng ko'p hissa qo'shgan menejerlar.
+   Savollar: "nega tushdi/o'sdi", "kim sababchi", "kim ko'tardi".
+
+• `sales_cycle_data` — o'rtacha sotuv sikli (necha kunda yopiladi).
+   Savollar: "qancha kunda sotamiz", "sotuv tezligi", "sikl uzunligi".
+
+• `stuck_deals_data` — 14 kun harakatsiz ochiq lidlar (follow-up).
+   Savollar: "qotib qolgan lidlar", "tashlab qo'yilgan", "e'tiborsiz".
+
+• `source_comparison` — AmoCRM vs Bitrix yonma-yon.
+   Savollar: "amocrm vs bitrix", "qaysi manba yaxshi".
+
+• `pipeline_breakdown` — har voronka (category) bo'yicha kesim.
+   Savollar: "qaysi voronka yaxshi", "pipeline bo'yicha".
+
+• `manager_detail` — BITTA menejer chuqur profili (ism yoki ID bilan).
+   Savollar: "Aziza qanday ishlayapti", "falonchi haqida batafsil".
+
+• `query_leads` — erkin filtrlangan lid ro'yxati (status/menejer/sana/narx).
+   Savollar: "Azizning ochiq lidlari", "may oyida yutqazilganlar".
+
+══════════════════════════════════════════════════════════════════════════
+DOMEN BILIMI (muhim — xato xulosadan saqlaydi)
+══════════════════════════════════════════════════════════════════════════
+• **Bitrix manbasida TUSHUM (revenue/narx) ko'pincha 0** — operatorlar pul
+  summasini kiritmaydi, tizim lead oqimi va konversiyani yuritadi. Shuning
+  uchun Bitrix uchun "tushum 0" — bu xato yoki yomon natija EMAS. Bitrix
+  bo'yicha tushumga urg'u bermang; leadlar soni, konversiya va sotuvlar
+  soniga e'tibor bering. AmoCRM'da tushum ishonchli.
+• Bitrix menejerlari `User` jadvalida ism bilan; ID'si "#100xxxx" ko'rinsa
+  — bu ishdan bo'shagan/sinxronlanmagan xodim, ismsiz ko'rsating.
+
+══════════════════════════════════════════════════════════════════════════
+SIFAT QOIDALARI (javobdan oldin)
+══════════════════════════════════════════════════════════════════════════
+1. **O'z-o'zini tekshir:** raqamlar mantiqan mosmi? (sotuv + yutqazish ≤ jami
+   lead; foizlar 0–100 oralig'ida; tushum manfiy emas). Mos kelmasa qayta
+   tool chaqir yoki ehtiyotkor yoz.
+2. **Ma'lumot yetarliligini ayt:** namuna kichik bo'lsa ("atigi 12 lead")
+   yoki davr juda qisqa bo'lsa — buni ochiq ayting, soxta ishonch bermang.
+3. **Faqat tool raqamlarini ishlating** — hech qachon raqam o'ylab topmang.
+4. **Auditoriyaga moslang:** so'rov yuqori darajali bo'lsa (rahbar, "umumiy
+   holat") — qisqa xulosa + 2-3 asosiy raqam + tavsiya. Tafsilot so'ralsa
+   (menejer nomi, "batafsil") — to'liq jadval va breakdown bering.
 
 ══════════════════════════════════════════════════════════════════════════
 HARAKAT TOOL'LARI (dashboard'ni boshqarish — chatda grafik chizish YOQ)
@@ -565,6 +717,59 @@ def chat_with_agent(question: str, manager_id: int = 0,
         source_value: str = Field(default='', description=(
             'set_source uchun: amocrm | bitrix | all (yoki bo\'sh).'))
 
+    detail_svc = AnalyticsService()
+
+    def _resolve_manager(text):
+        """Ism yoki ID matnidan menejer amocrm_id ni topadi."""
+        from apps.amocrm.models import User as AmoCRMUser
+        t = (text or '').strip()
+        if not t:
+            return None
+        if t.lstrip('#').isdigit():
+            return int(t.lstrip('#'))
+        match = (AmoCRMUser.objects.filter(name__icontains=t)
+                 .values_list('amocrm_id', flat=True).first())
+        return match
+
+    def _manager_detail_tool(manager: str = '') -> str:
+        mid = _resolve_manager(manager)
+        if mid is None:
+            return (f'Xato: "{manager}" menejer topilmadi. To\'liq ism yoki ID '
+                    'bering, yoki manager_performance bilan ro\'yxatni oling.')
+        return json.dumps(
+            detail_svc.get_manager_detail(mid, source=source, period=period),
+            ensure_ascii=False)
+
+    def _query_leads_tool(status: str = '', manager: str = '',
+                          date_from: str = '', date_to: str = '',
+                          min_price: float = 0, limit: int = 20) -> str:
+        mid = _resolve_manager(manager) if manager else None
+        if manager and mid is None:
+            return f'Xato: "{manager}" menejer topilmadi.'
+        return json.dumps(detail_svc.query_leads(
+            source=source, manager_id=mid,
+            status=(status or '').strip().lower() or None,
+            date_from=date_from or None, date_to=date_to or None,
+            min_price=min_price or None, limit=limit,
+        ), ensure_ascii=False)
+
+    class _ManagerDetailArgs(BaseModel):
+        manager: str = Field(description=(
+            'Menejer to\'liq ismi (masalan "Aziza Xayitova") yoki ID raqami.'))
+
+    class _QueryLeadsArgs(BaseModel):
+        status: str = Field(default='', description=(
+            'Filtr: won (sotilgan) | lost (yutqazilgan) | open (ochiq) '
+            'yoki bo\'sh (hammasi).'))
+        manager: str = Field(default='', description=(
+            'Menejer ismi yoki ID (ixtiyoriy).'))
+        date_from: str = Field(default='', description='YYYY-MM-DD (ixtiyoriy).')
+        date_to: str = Field(default='', description='YYYY-MM-DD (ixtiyoriy).')
+        min_price: float = Field(default=0, description=(
+            'Minimal narx filtri (ixtiyoriy).'))
+        limit: int = Field(default=20, description=(
+            'Qaytariladigan qatorlar soni (maks 100).'))
+
     extra_tools = [
         StructuredTool.from_function(
             func=_dashboard_command_tool,
@@ -575,6 +780,26 @@ def chat_with_agent(question: str, manager_id: int = 0,
                 'Grafik/chart so\'rovlari uchun action=add_custom_card ishlatiladi.'
             ),
             args_schema=_DashCmdArgs,
+        ),
+        StructuredTool.from_function(
+            func=_manager_detail_tool,
+            name='manager_detail',
+            description=(
+                'BITTA menejerning chuqur profili: KPI, kunlik trend va '
+                'yutqazish sabablari. "Aziza qanday ishlayapti", "falonchi '
+                'menejer haqida batafsil" savollari uchun. manager = ism yoki ID.'
+            ),
+            args_schema=_ManagerDetailArgs,
+        ),
+        StructuredTool.from_function(
+            func=_query_leads_tool,
+            name='query_leads',
+            description=(
+                'Erkin filtrlangan lid ro\'yxati: status/menejer/sana/narx '
+                'bo\'yicha. Tayyor tool qamramagan aniq savollar uchun, masalan '
+                '"Azizning ochiq lidlari", "may oyidagi yutqazilgan bitimlar".'
+            ),
+            args_schema=_QueryLeadsArgs,
         ),
     ]
 
