@@ -142,6 +142,7 @@ class AIChatView(APIView):
                     'answer': result['answer'],
                     'sources': result['sources'],
                     'used_rag': result['used_rag'],
+                    'message_id': result.get('message_id'),
                 })
             is_voice = bool(request.data.get('is_voice'))
             result = agent_mod.chat_with_agent(
@@ -161,6 +162,7 @@ class AIChatView(APIView):
             'steps': result.get('steps', []),
             'charts': result.get('charts', []),
             'commands': result.get('commands', []),
+            'message_id': result.get('message_id'),
         })
 
 class ChatHistoryView(APIView):

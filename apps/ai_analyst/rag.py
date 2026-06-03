@@ -162,5 +162,6 @@ def answer_question(question: str, manager_id: int = 0) -> dict:
     else:
         result = _answer_plain(question, manager_id)
 
-    memory_mod.save_turn(manager_id, question, result['answer'])
+    result['message_id'] = memory_mod.save_turn(
+        manager_id, question, result['answer'])
     return result

@@ -1181,3 +1181,96 @@ html[data-theme="light"] .icon-sun { display: none; }
     .dca-go { width: 100%; }
     .dash-range { right: 0; left: auto; }
 }
+
+/* ════════════════════════════════════════════════════════════
+   AI panellari: qo'ng'iroq badge, modal, hisobot/alert
+   ════════════════════════════════════════════════════════════ */
+.ai-bell { position: relative; }
+.ai-bell-badge {
+    position: absolute; top: -4px; right: -4px; min-width: 17px; height: 17px;
+    padding: 0 4px; border-radius: 9px; background: var(--accent-red);
+    color: #fff; font-size: 0.62rem; font-weight: 700; line-height: 17px;
+    text-align: center; box-shadow: 0 0 0 2px var(--bg-secondary);
+}
+
+.ai-modal {
+    position: fixed; inset: 0; z-index: 1000;
+    display: flex; align-items: flex-start; justify-content: center;
+}
+.ai-modal-backdrop {
+    position: absolute; inset: 0; background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(2px);
+}
+.ai-modal-box {
+    position: relative; margin-top: 64px; width: min(720px, 92vw);
+    max-height: 80vh; display: flex; flex-direction: column;
+    background: var(--bg-card); border: 1px solid var(--border-color);
+    border-radius: 14px; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+    overflow: hidden; animation: aiModalIn 0.18s ease;
+}
+@keyframes aiModalIn {
+    from { opacity: 0; transform: translateY(-12px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+.ai-modal-head {
+    display: flex; align-items: center; gap: 12px;
+    padding: 14px 18px; border-bottom: 1px solid var(--border-color);
+}
+.ai-modal-title { margin: 0; font-size: 1rem; color: var(--text-primary); flex: 0 0 auto; }
+.ai-modal-head-actions { flex: 1; display: flex; gap: 8px; }
+.ai-modal-close {
+    width: 30px; height: 30px; border: none; border-radius: 8px; cursor: pointer;
+    background: var(--bg-input); color: var(--text-secondary); font-size: 1.3rem;
+    line-height: 1;
+}
+.ai-modal-close:hover { background: var(--accent-red); color: #fff; }
+.ai-modal-body { padding: 16px 18px; overflow-y: auto; }
+.ai-modal-loading, .ai-modal-empty {
+    padding: 30px; text-align: center; color: var(--text-muted);
+}
+.ai-modal-select, .ai-modal-btn {
+    padding: 6px 12px; border-radius: 8px; cursor: pointer;
+    border: 1px solid var(--border-color); background: var(--bg-input);
+    color: var(--text-primary); font-size: 0.8rem;
+}
+.ai-modal-btn:hover { background: var(--accent-blue); color: #fff; }
+
+.ai-report { border-bottom: 1px solid var(--border-color); padding: 8px 0; }
+.ai-report summary {
+    cursor: pointer; display: flex; align-items: center; gap: 8px;
+    color: var(--text-primary); font-weight: 600; list-style: none;
+}
+.ai-report summary::-webkit-details-marker { display: none; }
+.ai-report-kind {
+    font-size: 0.68rem; font-weight: 700; padding: 2px 8px; border-radius: 12px;
+}
+.ai-rep-daily { background: var(--accent-blue-bg); color: var(--accent-blue); }
+.ai-rep-weekly { background: var(--accent-emerald-bg); color: var(--accent-emerald); }
+.ai-report-date { margin-left: auto; font-size: 0.72rem; color: var(--text-muted); font-weight: 400; }
+.ai-report-content { padding: 10px 4px; font-size: 0.84rem; color: var(--text-secondary); }
+.ai-report-content table { width: 100%; border-collapse: collapse; margin: 8px 0; }
+.ai-report-content th, .ai-report-content td {
+    border: 1px solid var(--border-color); padding: 5px 8px; font-size: 0.8rem;
+}
+
+.ai-alert {
+    padding: 10px 12px; margin-bottom: 8px; border-radius: 10px;
+    border-left: 3px solid var(--text-muted); background: var(--bg-input);
+}
+.ai-alert-read { opacity: 0.55; }
+.ai-sev-info { border-left-color: var(--accent-blue); }
+.ai-sev-warning { border-left-color: var(--accent-yellow); }
+.ai-sev-critical { border-left-color: var(--accent-red); }
+.ai-alert-msg { color: var(--text-primary); font-size: 0.86rem; }
+.ai-alert-meta { margin-top: 4px; font-size: 0.72rem; color: var(--text-muted); }
+
+/* Chat feedback tugmalari */
+.chat-feedback { display: flex; gap: 6px; margin-top: 6px; }
+.chat-fb-btn {
+    border: 1px solid var(--border-color); background: var(--bg-input);
+    border-radius: 7px; cursor: pointer; padding: 2px 8px; font-size: 0.85rem;
+    line-height: 1.4; opacity: 0.7; transition: opacity 0.15s, background 0.15s;
+}
+.chat-fb-btn:hover { opacity: 1; }
+.chat-fb-btn.fb-on-up { background: var(--accent-green-bg); border-color: var(--accent-green); opacity: 1; }
+.chat-fb-btn.fb-on-down { background: var(--accent-red-bg); border-color: var(--accent-red); opacity: 1; }

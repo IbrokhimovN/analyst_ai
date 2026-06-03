@@ -531,6 +531,10 @@
                         appendCommandPill(thinking, cmd, ok);
                     });
 
+                    if (data.message_id && window.buildChatFeedback) {
+                        thinking.appendChild(window.buildChatFeedback(data.message_id));
+                    }
+
                     pushHistory('ai', data.answer || '');
                     scrollDown();
                 })

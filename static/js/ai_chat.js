@@ -75,7 +75,7 @@ class AIChatWidget {
             try {
                 const data = await API.post('/ai/chat/', { message: text, source: source });
                 this.removeTyping();
-                this.appendMessage('ai', data.answer);
+                this.appendMessage('ai', data.answer, data.message_id);
             } catch (err) {
                 this.removeTyping();
                 this.appendMessage('ai', `⚠️ Xatolik: ${err.message}`);
@@ -84,7 +84,7 @@ class AIChatWidget {
         }
     }
 
-    appendMessage(role, text) {
+    appendMessage(role, text, messageId) {
         const div = document.createElement('div');
         div.className = `chat-message ${role}`;
 
@@ -103,6 +103,9 @@ class AIChatWidget {
 
         div.appendChild(avatar);
         div.appendChild(bubble);
+        if (role === 'ai' && messageId) {
+            bubble.appendChild(window.buildChatFeedback(messageId));
+        }
         this.container.appendChild(div);
         this.scrollToBottom();
     }

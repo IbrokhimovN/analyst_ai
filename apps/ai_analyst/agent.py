@@ -892,15 +892,17 @@ def chat_with_agent(question: str, manager_id: int = 0,
         except Exception as exc:
             logger.warning('Retry xato: %s', exc)
 
+    message_id = None
     try:
-        memory_mod.save_turn(manager_id, question, output)
+        message_id = memory_mod.save_turn(manager_id, question, output)
     except Exception as exc:
         logger.warning('Memory save xato: %s', exc)
 
     logger.info('Chat agent: manager=%s, tools=%s, charts=%d, commands=%d',
                 manager_id, steps, len(chart_specs), len(commands))
     return {'answer': output, 'sources': [], 'used_rag': False,
-            'steps': steps, 'charts': chart_specs, 'commands': commands}
+            'steps': steps, 'charts': chart_specs, 'commands': commands,
+            'message_id': message_id}
 
 _ACTION_TRIGGERS = (
     'yashir', 'ko\'rsat', 'qo\'sh', 'o\'chir', 'yarat', 'yasa', 'yasab',

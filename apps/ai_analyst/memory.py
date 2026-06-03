@@ -100,12 +100,14 @@ def build_summary_preface(manager_id: int) -> str:
         logger.warning('Summary preface xato: %s', exc)
         return ''
 
-def save_turn(manager_id: int, human_text: str, ai_text: str) -> None:
-    ChatMessage.objects.bulk_create([
-        ChatMessage(manager_id=manager_id, role='human', content=human_text),
-        ChatMessage(manager_id=manager_id, role='ai', content=ai_text),
-    ])
+def save_turn(manager_id: int, human_text: str, ai_text: str):
+    """Suhbat almashinuvini saqlaydi va AI xabar id'sini qaytaradi (feedback uchun)."""
+    ChatMessage.objects.create(
+        manager_id=manager_id, role='human', content=human_text)
+    ai_msg = ChatMessage.objects.create(
+        manager_id=manager_id, role='ai', content=ai_text)
     logger.info('Menejer #%s suhbatiga yangi almashinuv saqlandi', manager_id)
+    return ai_msg.id
 
 def clear_history(manager_id: int) -> int:
     deleted, _ = ChatMessage.objects.filter(manager_id=manager_id).delete()
