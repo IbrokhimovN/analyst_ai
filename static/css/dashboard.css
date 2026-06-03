@@ -1197,6 +1197,7 @@ html[data-theme="light"] .icon-sun { display: none; }
     position: fixed; inset: 0; z-index: 1000;
     display: flex; align-items: flex-start; justify-content: center;
 }
+.ai-modal[hidden] { display: none; }
 .ai-modal-backdrop {
     position: absolute; inset: 0; background: rgba(0, 0, 0, 0.5);
     backdrop-filter: blur(2px);
