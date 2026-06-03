@@ -33,9 +33,17 @@ class ChatMessage(models.Model):
         ('ai', 'AI'),
     ]
 
+    FEEDBACK_CHOICES = [
+        ('', '—'),
+        ('up', 'Foydali'),
+        ('down', 'Foydasiz'),
+    ]
+
     manager_id = models.IntegerField('Menejer ID', default=0, db_index=True)
     role = models.CharField('Rol', max_length=10, choices=ROLE_CHOICES)
     content = models.TextField('Matn')
+    feedback = models.CharField('Baho', max_length=4,
+                                choices=FEEDBACK_CHOICES, blank=True, default='')
     created_at = models.DateTimeField('Vaqt', auto_now_add=True)
 
     class Meta:
@@ -48,3 +56,54 @@ class ChatMessage(models.Model):
 
     def __str__(self):
         return f'[{self.manager_id}] {self.role}: {self.content[:40]}'
+
+class GeneratedReport(models.Model):
+    """Celery tomonidan avtomatik tuziladigan AI hisobotlari."""
+
+    KIND_CHOICES = [
+        ('daily', 'Kunlik'),
+        ('weekly', 'Haftalik'),
+    ]
+
+    kind = models.CharField('Tur', max_length=10, choices=KIND_CHOICES,
+                            db_index=True)
+    source = models.CharField('Manba', max_length=20, blank=True, default='')
+    title = models.CharField('Sarlavha', max_length=255)
+    content = models.TextField('Matn (Markdown)')
+    metrics = models.JSONField('Ko\'rsatkichlar', default=dict, blank=True)
+    created_at = models.DateTimeField('Vaqt', auto_now_add=True, db_index=True)
+
+    class Meta:
+        verbose_name = 'AI hisobot'
+        verbose_name_plural = 'AI hisobotlar'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'{self.get_kind_display()} — {self.created_at:%Y-%m-%d}'
+
+class MetricAlert(models.Model):
+    """Belgilangan chegaralar buzilganda yaratiladigan ogohlantirishlar."""
+
+    SEVERITY_CHOICES = [
+        ('info', 'Ma\'lumot'),
+        ('warning', 'Ogohlantirish'),
+        ('critical', 'Jiddiy'),
+    ]
+
+    metric = models.CharField('Ko\'rsatkich', max_length=50)
+    source = models.CharField('Manba', max_length=20, blank=True, default='')
+    severity = models.CharField('Darajasi', max_length=10,
+                                choices=SEVERITY_CHOICES, default='warning')
+    message = models.CharField('Xabar', max_length=500)
+    value = models.FloatField('Qiymat', null=True, blank=True)
+    threshold = models.FloatField('Chegara', null=True, blank=True)
+    is_read = models.BooleanField('O\'qilgan', default=False, db_index=True)
+    created_at = models.DateTimeField('Vaqt', auto_now_add=True, db_index=True)
+
+    class Meta:
+        verbose_name = 'Metrik alert'
+        verbose_name_plural = 'Metrik alertlar'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'[{self.severity}] {self.message[:50]}'

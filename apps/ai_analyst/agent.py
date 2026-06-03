@@ -807,7 +807,18 @@ def chat_with_agent(question: str, manager_id: int = 0,
 
     mem = memory_mod.build_memory(manager_id,
                                   input_key='input', output_key='output')
-    history_msgs = mem.chat_memory.messages
+    history_msgs = list(mem.chat_memory.messages)
+
+    # Uzoq xotira: oyna tashqarisidagi eski suhbat xulosasini old qo'shamiz
+    try:
+        from langchain_core.messages import SystemMessage
+        preface = memory_mod.build_summary_preface(manager_id)
+        if preface:
+            history_msgs = [SystemMessage(content=(
+                'Oldingi suhbat xulosasi (kontekst uchun): ' + preface
+            ))] + history_msgs
+    except Exception as exc:
+        logger.warning('Summary preface ulanmadi: %s', exc)
 
     from datetime import date
     today = date.today()

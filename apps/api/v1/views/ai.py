@@ -290,3 +290,83 @@ class TTSView(APIView):
         response['Content-Length'] = str(len(audio))
         response['Cache-Control'] = 'private, max-age=604800'
         return response
+
+
+class GeneratedReportsView(APIView):
+    """Avto-tuzilgan AI hisobotlar ro'yxati (kunlik/haftalik)."""
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        from apps.ai_analyst.models import GeneratedReport
+        qs = GeneratedReport.objects.all()
+        kind = request.query_params.get('kind')
+        if kind in ('daily', 'weekly'):
+            qs = qs.filter(kind=kind)
+        source = _clean_source(request.query_params.get('source'))
+        if source:
+            qs = qs.filter(source=source)
+        rows = list(qs[:20].values('id', 'kind', 'source', 'title',
+                                    'content', 'created_at'))
+        return Response({'reports': rows})
+
+
+class MetricAlertsView(APIView):
+    """Metrik alertlar ro'yxati; PATCH bilan o'qilgan deb belgilash."""
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        from apps.ai_analyst.models import MetricAlert
+        qs = MetricAlert.objects.all()
+        if request.query_params.get('unread') == '1':
+            qs = qs.filter(is_read=False)
+        rows = list(qs[:50].values('id', 'metric', 'source', 'severity',
+                                   'message', 'value', 'threshold',
+                                   'is_read', 'created_at'))
+        return Response({'alerts': rows,
+                         'unread': MetricAlert.objects.filter(
+                             is_read=False).count()})
+
+    def patch(self, request):
+        from apps.ai_analyst.models import MetricAlert
+        alert_id = request.data.get('id')
+        if alert_id:
+            MetricAlert.objects.filter(id=alert_id).update(is_read=True)
+        else:
+            MetricAlert.objects.filter(is_read=False).update(is_read=True)
+        return Response({'status': 'ok'})
+
+
+class ChatFeedbackView(APIView):
+    """AI javobiga 👍/👎 baho berish."""
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        msg_id = request.data.get('message_id')
+        value = (request.data.get('feedback') or '').strip()
+        if value not in ('up', 'down', ''):
+            return Response({'error': 'feedback up|down bo\'lishi kerak.'},
+                            status=status.HTTP_400_BAD_REQUEST)
+        updated = ChatMessage.objects.filter(id=msg_id, role='ai').update(
+            feedback=value)
+        if not updated:
+            return Response({'error': 'Xabar topilmadi.'},
+                            status=status.HTTP_404_NOT_FOUND)
+        return Response({'status': 'ok', 'feedback': value})
+
+
+class AnalyticsExportView(APIView):
+    """Analitikani Excel (.xlsx) faylga eksport qiladi."""
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        from apps.ai_analyst.export import build_analytics_workbook
+        source = _clean_source(request.query_params.get('source'))
+        period = _clean_period(request.query_params.get('period'))
+        data = build_analytics_workbook(source=source, period=period)
+        fname = f'analitika_{source or "all"}.xlsx'
+        response = HttpResponse(
+            data,
+            content_type=('application/vnd.openxmlformats-officedocument'
+                          '.spreadsheetml.sheet'))
+        response['Content-Disposition'] = f'attachment; filename="{fname}"'
+        return response

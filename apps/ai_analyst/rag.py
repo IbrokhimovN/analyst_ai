@@ -62,6 +62,20 @@ def add_document(doc) -> int:
     logger.info('Hujjat #%s FAISS indeksiga qo\'shildi: %s bo\'lak', doc.id, len(chunks))
     return len(chunks)
 
+def add_texts(texts, metadatas) -> int:
+    """Tayyor matnlarni (masalan AI hisobotlar) FAISS indeksiga qo'shadi."""
+    from langchain_community.vectorstores import FAISS
+
+    embeddings = get_embeddings()
+    with _INDEX_LOCK:
+        store = _load_vectorstore()
+        if store is None:
+            store = FAISS.from_texts(texts, embeddings, metadatas=metadatas)
+        else:
+            store.add_texts(texts, metadatas=metadatas)
+        store.save_local(_index_dir())
+    return len(texts)
+
 def rebuild_index() -> int:
     from langchain_community.vectorstores import FAISS
 

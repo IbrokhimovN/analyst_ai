@@ -125,6 +125,8 @@ CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TIMEZONE = 'Asia/Tashkent'
 
+from celery.schedules import crontab
+
 CELERY_BEAT_SCHEDULE = {
     'sync-amocrm-every-15min': {
         'task': 'apps.amocrm.tasks.sync_all',
@@ -133,6 +135,20 @@ CELERY_BEAT_SCHEDULE = {
     'sync-bitrix-every-15min': {
         'task': 'apps.crm.tasks.sync_bitrix_all',
         'schedule': 900,
+    },
+    # AI avto-hisobotlar (Asia/Tashkent)
+    'ai-daily-report': {
+        'task': 'apps.ai_analyst.tasks.generate_daily_report',
+        'schedule': crontab(hour=8, minute=0),
+    },
+    'ai-weekly-report': {
+        'task': 'apps.ai_analyst.tasks.generate_weekly_report',
+        'schedule': crontab(hour=8, minute=0, day_of_week=1),  # dushanba
+    },
+    # Metrik alertlar — har soat
+    'ai-metric-alerts': {
+        'task': 'apps.ai_analyst.tasks.check_metric_alerts',
+        'schedule': crontab(minute=0),
     },
 }
 
