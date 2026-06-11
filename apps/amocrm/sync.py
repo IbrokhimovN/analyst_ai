@@ -161,10 +161,36 @@ def sync_unsorted(service=None):
             break
 
         for entry in items:
+            # Unsorted yozuvdagi embedded lead ko'pincha faqat {"id": ...} —
+            # shu sabab to'liq ma'lumotni alohida olamiz; bo'lmasa entry
+            # metadata'sini (created_at, pipeline_id) fallback qilamiz, toki
+            # lead sana bilan saqlanib, dashboardda ko'rinsin.
+            entry_created = entry.get("created_at")
+            entry_pipeline = entry.get("pipeline_id")
             leads = entry.get("_embedded", {}).get("leads", []) or []
             for lead in leads:
+                lead_id = lead.get("id")
+                if not lead_id:
+                    continue
+
+                item = None
                 try:
-                    if _save_lead(lead):
+                    full = service.get_lead_detail(lead_id)
+                    if isinstance(full, dict) and full.get("id"):
+                        item = full
+                except Exception as exc:
+                    logger.warning("Kiruvchi lead %s detali olinmadi: %s",
+                                   lead_id, exc)
+
+                if item is None:
+                    item = dict(lead)
+                    if not item.get("pipeline_id"):
+                        item["pipeline_id"] = entry_pipeline
+                if not item.get("created_at") and entry_created:
+                    item["created_at"] = entry_created
+
+                try:
+                    if _save_lead(item):
                         total += 1
                 except Exception as exc:
                     logger.warning("Kiruvchi lead saqlanmadi: %s", exc)
