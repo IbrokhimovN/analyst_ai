@@ -398,6 +398,185 @@ OVOZLI REJIM (foydalanuvchi mikrofondan so'radi) — QAT'IY QOIDALAR
 """
 
 
+# ══════════════════════════════════════════════════════════════════════════
+# FAST-PATH: keng tarqalgan dashboard buyruqlarini LLM'siz, deterministik
+# bajaramiz. Bu ham tez (<0.3s, LLM round-trip yo'q), ham aniq (qoidaviy —
+# "bugun"ni haftaga adashtirmaydi, "yetishmayotgan karta"ni o'zgartirmaydi).
+# Faqat ISHONCHLI mos kelganda ishlaydi; aks holda None -> LLM agenti.
+# ══════════════════════════════════════════════════════════════════════════
+_FAST_VERBS = (
+    'chiqar', 'ko\'rsat', 'korsat', 'ko\'rset', 'qil', 'o\'rnat', 'tanla',
+    'bering', 'ber ', 'qo\'y', 'filtr', 'filter', 'oraliq', 'almashtir',
+    'o\'zgartir', 'yasab', 'yasa ',
+)
+_FAST_NUM_Q = ('nechta', 'qancha', 'necha ', 'foiz', 'o\'rtacha', 'soni qancha')
+
+# (alias_substr, card_key) — uzunroq aliaslar oldinroq tekshiriladi
+_CARD_ALIASES = (
+    ('savdo voronka', 'funnel'), ('voronka', 'funnel'), ('funnel', 'funnel'),
+    ('menejer', 'managers'), ('reyting', 'managers'),
+    ('sotib olmad', 'loss'), ('yutqaz', 'loss'), ('sabab', 'loss'),
+    ('loss', 'loss'),
+    ('moliy', 'finance'), ('finance', 'finance'),
+    ('konversiya', 'conversions'), ('conversion', 'conversions'),
+    ('kunlik dinamika', 'daily'), ('dinamika', 'daily'),
+    ('follow', 'followup'), ('qoldiril', 'followup'),
+    ('eng yaxshi kun', 'best_days'), ('yaxshi kun', 'best_days'),
+    ('best_days', 'best_days'),
+)
+_PERIOD_UZ = {'day': 'bugun (kunlik)', 'week': 'shu hafta', 'month': 'shu oy',
+              'all': 'barcha vaqt'}
+_SOURCE_UZ = {'amocrm': 'AmoCRM', 'bitrix': 'Bitrix', '': 'barcha manba'}
+
+def _default_chart_commands(source=None, period=None):
+    """Har default karta uchun grafik (add_custom_card) buyruqlarini quradi."""
+    cmds = []
+    for c_key, preset in _DEFAULT_CHART_PRESETS.items():
+        spec, err = _build_chat_chart_spec(
+            card=c_key, view_type=preset['view_type'], metric=preset['metric'],
+            metrics=list(preset['metrics']), sort_by=preset.get('sort_by', ''),
+            sort_dir=preset.get('sort_dir', 'desc'),
+            limit=int(preset.get('limit', 0)), title=preset.get('title', ''),
+            source=source, period=period,
+        )
+        if err:
+            continue
+        cmds.append({'action': 'add_custom_card', 'card': c_key, 'spec': spec})
+    return cmds
+
+def _fast_match_period(q):
+    if any(w in q for w in ('barcha vaqt', 'butun vaqt', 'hamma vaqt',
+                            'butun davr', 'filter bekor', 'filtrni bekor',
+                            'filtrni o\'chir', 'filterni o\'chir',
+                            'filtr tozala', 'filterni tozala')):
+        return 'all'
+    if 'bugun' in q or 'kunlik' in q or 'shu kun' in q:
+        return 'day'
+    if ('haftalik' in q or 'shu hafta' in q or 'bu hafta' in q or
+            'oxirgi hafta' in q):
+        return 'week'
+    if 'oylik' in q or 'shu oy' in q or 'bu oy' in q:
+        return 'month'
+    return None
+
+def _fast_match_source(q):
+    a, b = 'amocrm' in q, 'bitrix' in q
+    if a and b:
+        return ''  # ikkalasi -> barcha manba
+    if any(w in q for w in ('ikkala manba', 'barcha manba', 'hamma manba',
+                            'manbani tozala', 'har ikkala manba')):
+        return ''
+    if a:
+        return 'amocrm'
+    if b:
+        return 'bitrix'
+    return None
+
+def _fast_dashboard_command(question, source=None, period=None):
+    """Dashboard buyrug'ini deterministik aniqlaydi.
+
+    (commands, answer) qaytaradi yoki None (ishonchli mos yo'q -> LLM agenti).
+    """
+    q = (question or '').strip().lower()
+    if not q:
+        return None
+    words = q.split()
+    has_verb = any(v in q for v in _FAST_VERBS)
+    has_num_q = any(w in q for w in _FAST_NUM_Q)
+    card_ctx = ('karta' in q)
+
+    def _label(key):
+        meta = _CARD_FIELDS.get(key) or {}
+        return meta.get('label', key)
+
+    # ── 1) Yetishmayotgan kartalar / hammasini grafikka ──
+    wants_missing = (
+        'yetishmay' in q or ('yo\'q' in q and card_ctx) or
+        (('hamma' in q or 'barcha' in q) and card_ctx and
+         ('grafik' in q or 'chart' in q))
+    )
+    if wants_missing:
+        cmds = _default_chart_commands(source, period)
+        if cmds:
+            return (cmds, '✅ Yetishmayotgan kartalar uchun grafiklar '
+                          'dashboard\'ga qo\'shildi.')
+        return None
+
+    # ── 2) Barcha kartalar bilan ommaviy amallar ──
+    if card_ctx and ('hamma' in q or 'barcha' in q):
+        if 'yashir' in q:
+            return ([{'action': 'hide_all_cards'}],
+                    '✅ Barcha kartalar yashirildi.')
+        if 'qaytar' in q or 'ko\'rsat' in q or 'korsat' in q:
+            return ([{'action': 'show_all_cards'}],
+                    '✅ Barcha kartalar qaytarildi.')
+    if card_ctx and ('tozala' in q or ('maxsus' in q and 'o\'chir' in q) or
+                     ('qo\'shilgan' in q and 'o\'chir' in q)):
+        return ([{'action': 'remove_all_custom'}],
+                '✅ Qo\'shilgan maxsus kartalar tozalandi.')
+
+    # ── 3) Bitta kartani yashirish/ko'rsatish ──
+    if card_ctx and ('yashir' in q or 'olib tashla' in q):
+        for alias, key in _CARD_ALIASES:
+            if alias in q:
+                return ([{'action': 'hide_card', 'card': key}],
+                        f'✅ "{_label(key)}" kartasi yashirildi.')
+    if card_ctx and ('qaytar' in q or 'ko\'rsat' in q or 'korsat' in q):
+        for alias, key in _CARD_ALIASES:
+            if alias in q:
+                return ([{'action': 'show_card', 'card': key}],
+                        f'✅ "{_label(key)}" kartasi ko\'rsatildi.')
+
+    # ── 4) Dashboard yangilash ──
+    if 'yangila' in q and ('dashboard' in q or 'sahifa' in q or len(words) <= 2):
+        return ([{'action': 'refresh_dashboard'}], '✅ Dashboard yangilandi.')
+
+    # ── 5) Filter: davr + manba (raqamli/tahlil savoli va karta bo'lmasa) ──
+    has_analysis = 'tahlil' in q or 'analiz' in q
+    if not has_num_q and not card_ctx and not has_analysis:
+        p = _fast_match_period(q)
+        s = _fast_match_source(q)
+        fire = has_verb or len(words) <= 3
+        if (p or s is not None) and fire:
+            cmds, parts = [], []
+            if s is not None:
+                cmds.append({'action': 'set_source', 'source': s})
+                parts.append('manba: ' + _SOURCE_UZ.get(s, s or 'barcha'))
+            if p:
+                cmds.append({'action': 'set_period', 'period': p})
+                parts.append('davr: ' + _PERIOD_UZ.get(p, p))
+            if cmds:
+                return (cmds, '✅ Filter o\'rnatildi (' + ', '.join(parts) +
+                              '). Dashboard yangilandi.')
+
+    return None
+
+def fast_dashboard_response(question, manager_id=0, source=None, period=None):
+    """Fast-path to'liq javobini (dict) qaytaradi yoki None.
+
+    save_turn'ni ham bajaradi. View'lar RAG/agentdan OLDIN shuni chaqiradi —
+    shunda dashboard buyruqlari RAG indeksi bor bo'lsa ham ishlaydi.
+    """
+    from . import memory as memory_mod
+    try:
+        fast = _fast_dashboard_command(question, source, period)
+    except Exception as exc:
+        logger.warning('Fast-path xato: %s', exc)
+        return None
+    if fast is None:
+        return None
+    fast_commands, fast_answer = fast
+    message_id = None
+    try:
+        message_id = memory_mod.save_turn(manager_id, question, fast_answer)
+    except Exception as exc:
+        logger.warning('Memory save xato (fast): %s', exc)
+    logger.info('Chat fast-path: q=%r, commands=%d',
+                question[:80], len(fast_commands))
+    return {'answer': fast_answer, 'sources': [], 'used_rag': False,
+            'steps': ['fast_command'], 'charts': [],
+            'commands': fast_commands, 'message_id': message_id}
+
 def chat_with_agent(question: str, manager_id: int = 0,
                     source=None, period=None, is_voice: bool = False,
                     callbacks=None) -> dict:
@@ -414,6 +593,11 @@ def chat_with_agent(question: str, manager_id: int = 0,
         return {'answer': 'Savol bo\'sh.', 'sources': [],
                 'used_rag': False, 'steps': [],
                 'charts': [], 'commands': []}
+
+    # ── FAST-PATH: dashboard buyrug'i bo'lsa LLM'siz, deyarli bir zumda ──
+    fast = fast_dashboard_response(question, manager_id, source, period)
+    if fast is not None:
+        return fast
 
     chart_specs = []
     commands = []

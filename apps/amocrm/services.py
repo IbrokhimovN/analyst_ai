@@ -63,6 +63,14 @@ class AmoCRMService:
             "with": "contacts,loss_reason",
         })
 
+    def get_unsorted(self, page=1, limit=250):
+        # "Неразобранное" — kiruvchi/saralanmagan leadlar. /api/v4/leads
+        # bularni qaytarmaydi, shu sabab alohida endpoint.
+        return self._get("/api/v4/leads/unsorted", params={
+            "page": page,
+            "limit": limit,
+        })
+
     def get_contacts(self, page=1, limit=250):
         return self._get("/api/v4/contacts", params={
             "page": page,

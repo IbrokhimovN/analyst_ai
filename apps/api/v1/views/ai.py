@@ -137,6 +137,20 @@ class AIChatView(APIView):
                                request.query_params.get('period'))
 
         try:
+            # Dashboard buyrug'i bo'lsa — LLM/RAG'siz, deyarli bir zumda.
+            fast = agent_mod.fast_dashboard_response(
+                question, manager_id=manager_id, source=source, period=period)
+            if fast is not None:
+                return Response({
+                    'question': question,
+                    'answer': fast['answer'],
+                    'sources': fast.get('sources', []),
+                    'used_rag': False,
+                    'steps': fast.get('steps', []),
+                    'charts': fast.get('charts', []),
+                    'commands': fast.get('commands', []),
+                    'message_id': fast.get('message_id'),
+                })
             if rag_mod.index_exists():
                 result = rag_mod.answer_question(question, manager_id=manager_id)
                 return Response({
@@ -425,7 +439,13 @@ def ai_chat_stream(request):
 
         def run():
             try:
-                if rag_mod.index_exists():
+                fast = agent_mod.fast_dashboard_response(
+                    question, manager_id=manager_id, source=source,
+                    period=period)
+                if fast is not None:
+                    # Dashboard buyrug'i — token yo'q, to'g'ridan-to'g'ri final.
+                    box['result'] = fast
+                elif rag_mod.index_exists():
                     # RAG hujjatlari bor — agent o'rniga RAG javobi (stream yo'q,
                     # bitta final hodisa sifatida yuboriladi).
                     box['result'] = rag_mod.answer_question(

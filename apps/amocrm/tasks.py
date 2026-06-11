@@ -31,6 +31,14 @@ def sync_leads(self):
         self.retry(exc=exc, countdown=60)
 
 @shared_task(bind=True, max_retries=3)
+def sync_unsorted(self):
+    try:
+        return {"synced": sync.sync_unsorted()}
+    except Exception as exc:
+        logger.error("Kiruvchi (unsorted) lead sinxronlashda xatolik: %s", exc)
+        self.retry(exc=exc, countdown=60)
+
+@shared_task(bind=True, max_retries=3)
 def sync_contacts(self):
     try:
         return {"synced": sync.sync_contacts()}

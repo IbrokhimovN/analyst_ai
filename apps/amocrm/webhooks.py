@@ -14,9 +14,11 @@ def amocrm_webhook(request):
         data = json.loads(request.body) if request.content_type == 'application/json' else request.POST.dict()
         logger.info(f"AmoCRM webhook qabul qilindi: {data}")
 
-        if 'leads' in data:
-            from .tasks import sync_leads
+        if 'leads' in data or 'unsorted' in data:
+            from .tasks import sync_leads, sync_unsorted
             sync_leads.delay()
+            # Yangi kiruvchi (Неразобранное) lead ham kelishi mumkin
+            sync_unsorted.delay()
 
         if 'contacts' in data:
             from .tasks import sync_contacts
