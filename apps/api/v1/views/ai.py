@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 import re
@@ -8,7 +9,8 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse, StreamingHttpResponse
+from django.views.decorators.csrf import csrf_exempt
 
 from apps.ai_analyst import agent as agent_mod
 from apps.ai_analyst import memory as memory_mod
@@ -372,3 +374,97 @@ class AnalyticsExportView(APIView):
                           '.spreadsheetml.sheet'))
         response['Content-Disposition'] = f'attachment; filename="{fname}"'
         return response
+
+
+def _sse(payload):
+    """Bitta Server-Sent-Events qatorini formatlaydi."""
+    return 'data: ' + json.dumps(payload, ensure_ascii=False) + '\n\n'
+
+
+@csrf_exempt
+def ai_chat_stream(request):
+    """AI chat javobini token-token (SSE) oqitadi.
+
+    Yakuniy javob avtoritar: `final` hodisasi `answer` + charts/commands/
+    message_id ni beradi (frontend oqigan matnni shu bilan almashtiradi).
+    Xato bo'lsa frontend mavjud /ai/chat/ endpoint'iga qaytadi.
+    """
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST kerak.'}, status=405)
+    try:
+        payload = json.loads((request.body or b'{}').decode('utf-8'))
+    except Exception:
+        payload = {}
+
+    question = (payload.get('message') or payload.get('question') or '').strip()
+    if not question:
+        return JsonResponse({'error': 'Savol bo\'sh bo\'lmasligi kerak!'},
+                            status=400)
+    try:
+        manager_id = int(payload.get('manager_id') or 0)
+    except (TypeError, ValueError):
+        manager_id = 0
+    source = _clean_source(payload.get('source'))
+    period = _clean_period(payload.get('period'))
+    is_voice = bool(payload.get('is_voice'))
+
+    def event_stream():
+        import queue
+        import threading
+
+        from django.db import connection
+        from langchain_core.callbacks import BaseCallbackHandler
+
+        q = queue.Queue()
+        box = {}
+
+        class _Tok(BaseCallbackHandler):
+            def on_llm_new_token(self, token, **kwargs):
+                if token:
+                    q.put(token)
+
+        def run():
+            try:
+                if rag_mod.index_exists():
+                    # RAG hujjatlari bor — agent o'rniga RAG javobi (stream yo'q,
+                    # bitta final hodisa sifatida yuboriladi).
+                    box['result'] = rag_mod.answer_question(
+                        question, manager_id=manager_id)
+                else:
+                    box['result'] = agent_mod.chat_with_agent(
+                        question, manager_id=manager_id, source=source,
+                        period=period, is_voice=is_voice, callbacks=[_Tok()])
+            except Exception as exc:
+                logger.error('AI stream xatolik: %s', exc)
+                box['error'] = str(exc)
+            finally:
+                q.put(None)
+                connection.close()
+
+        threading.Thread(target=run, daemon=True).start()
+
+        while True:
+            tok = q.get()
+            if tok is None:
+                break
+            yield _sse({'type': 'token', 'text': tok})
+
+        if 'error' in box:
+            yield _sse({'type': 'error', 'message': box['error']})
+        else:
+            r = box.get('result') or {}
+            yield _sse({
+                'type': 'final',
+                'answer': r.get('answer', ''),
+                'sources': r.get('sources', []),
+                'charts': r.get('charts', []),
+                'commands': r.get('commands', []),
+                'message_id': r.get('message_id'),
+            })
+        yield _sse({'type': 'done'})
+
+    response = StreamingHttpResponse(event_stream(),
+                                     content_type='text/event-stream')
+    response['Cache-Control'] = 'no-cache'
+    response['X-Accel-Buffering'] = 'no'  # nginx buffering o'chirilsin
+    return response

@@ -16,6 +16,7 @@ urlpatterns = [
     path('analytics/revenue-trend/', analytics.RevenueTrendView.as_view(), name='analytics-revenue-trend'),
     path('dashboard/data/', dashboard_data.DashboardDataView.as_view(), name='dashboard-data'),
     path('ai/chat/', ai.AIChatView.as_view(), name='ai-chat'),
+    path('ai/chat/stream/', ai.ai_chat_stream, name='ai-chat-stream'),
     path('ai/chat/history/', ai.ChatHistoryView.as_view(), name='ai-chat-history'),
     path('ai/rag/upload/', ai.RAGUploadView.as_view(), name='ai-rag-upload'),
     path('ai/rag/documents/', ai.RAGDocumentsView.as_view(), name='ai-rag-documents'),

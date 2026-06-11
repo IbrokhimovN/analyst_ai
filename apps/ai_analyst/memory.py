@@ -76,7 +76,11 @@ def build_summary_preface(manager_id: int) -> str:
     if not older:
         return ''
 
-    cache_key = (manager_id, len(older))
+    # Kesh kalitini 5 juftlik "bucket"ga yaxlitlaymiz. Aks holda har xabarda
+    # len(older) 1 ga oshib, kalit har safar yangi bo'lar va kesh DOIM miss
+    # bo'lardi — ya'ni har bir chatda xulosa uchun ortiqcha LLM chaqiruvi.
+    # Endi xulosa har ~5 yangi almashinuvda bir marta qayta hisoblanadi.
+    cache_key = (manager_id, len(older) // 5)
     if cache_key in _SUMMARY_CACHE:
         return _SUMMARY_CACHE[cache_key]
 

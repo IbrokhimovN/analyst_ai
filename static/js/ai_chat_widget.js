@@ -3,6 +3,7 @@
 
     var HOST_ID = 'ai-chat-widget';
     var ENDPOINT = '/api/v1/ai/chat/';
+    var STREAM_ENDPOINT = '/api/v1/ai/chat/stream/';
     var STORAGE_KEY = 'ai_chat_widget_history_v1';
 
     function csrfToken() {
@@ -233,10 +234,11 @@
         return n.toLocaleString('ru-RU');
     }
 
-    function appendCommandPill(targetEl, cmd, ok) {
+    function appendCommandPill(targetEl, cmd, status) {
         var p = document.createElement('div');
-        p.className = 'cmd-pill' + (ok ? '' : ' err');
-        var icon = ok ? '✅' : '⚠️';
+        var icon = status === 'applied' ? '✅'
+                 : (status === 'queued' ? '⏳' : '⚠️');
+        p.className = 'cmd-pill' + (status === 'applied' ? '' : ' err');
         var labels = {
             show_card: 'kartasi ko\'rsatildi',
             hide_card: 'kartasi yashirildi',
@@ -256,18 +258,43 @@
         var extra = '';
         if (cmd.action === 'set_period' && cmd.period) { extra = ' (' + cmd.period + ')'; }
         if (cmd.action === 'set_source') { extra = ' (' + (cmd.source || 'all') + ')'; }
+        if (status === 'queued') {
+            // Dashboarddan tashqari sahifa — buyruq navbatga qo'yildi
+            extra += ' — dashboard ochilganda qo\'llanadi';
+        }
         p.textContent = icon + ' ' + (cmd.card ? cmd.card + ' — ' : '') + what + extra;
         targetEl.appendChild(p);
     }
 
+    // Dashboarddan tashqari sahifada listener yo'q — buyruqni localStorage
+    // navbatiga qo'yamiz; dashboard ochilganda dashboard_dynamic.js uni qo'llaydi.
+    function queuePendingCommand(cmd) {
+        try {
+            var KEY = 'dash:pendingCommands';
+            var q = JSON.parse(localStorage.getItem(KEY) || '[]');
+            if (!Array.isArray(q)) { q = []; }
+            var clean = {};
+            Object.keys(cmd).forEach(function (k) {
+                if (k !== '__handled') { clean[k] = cmd[k]; }
+            });
+            q.push(clean);
+            if (q.length > 30) { q = q.slice(-30); }
+            localStorage.setItem(KEY, JSON.stringify(q));
+        } catch (e) {  }
+    }
+
     function dispatchCommand(cmd) {
         try {
+            cmd.__handled = false;
             var evt = new CustomEvent('dashboard:command', {
                 detail: cmd, bubbles: true,
             });
             window.dispatchEvent(evt);
-            return true;
-        } catch (e) { return false; }
+            // Listener (dashboard_dynamic.js) qo'llasa __handled=true qiladi.
+            if (cmd.__handled) { return 'applied'; }
+            queuePendingCommand(cmd);
+            return 'queued';
+        } catch (e) { return 'error'; }
     }
 
     function buildWidget(host) {
@@ -473,6 +500,118 @@
             saveHistory(state.history);
         }
 
+        // Yakuniy (avtoritar) javobni qo'llaydi: matn + grafik + buyruq + feedback.
+        function applyFinal(thinking, data) {
+            var html = renderMarkdown(data.answer || '');
+            if (data.sources && data.sources.length) {
+                html += '<div class="sources">📎 Manba: ' +
+                        data.sources.map(function (s) { return esc(s); }).join(', ') +
+                        '</div>';
+            }
+            thinking.innerHTML = html;
+
+            var charts = Array.isArray(data.charts) ? data.charts : [];
+            charts.forEach(function (spec) { appendChart(thinking, spec); });
+
+            var cmds = Array.isArray(data.commands) ? data.commands : [];
+            cmds.forEach(function (cmd) {
+                var status = dispatchCommand(cmd);
+                appendCommandPill(thinking, cmd, status);
+            });
+
+            if (data.message_id && window.buildChatFeedback) {
+                thinking.appendChild(window.buildChatFeedback(data.message_id));
+            }
+
+            pushHistory('ai', data.answer || '');
+            scrollDown();
+        }
+
+        // Oddiy (stream'siz) so'rov — fallback sifatida ishlatiladi.
+        function plainSend(payload, thinking) {
+            return fetch(ENDPOINT, {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken(),
+                },
+                body: JSON.stringify(payload),
+            })
+                .then(function (r) {
+                    return r.json().then(function (j) { return { ok: r.ok, data: j }; });
+                })
+                .then(function (res) {
+                    if (!res.ok) {
+                        throw new Error((res.data && res.data.error) || 'Xatolik');
+                    }
+                    applyFinal(thinking, res.data || {});
+                });
+        }
+
+        // SSE stream so'rov — token-token oqitadi. MA'LUMOT kelishidan OLDIN
+        // xato bo'lsa reject qiladi (caller plainSend'ga qaytadi); ma'lumot
+        // kela boshlagach hech qachon reject qilmaydi (qayta urinish bo'lmaydi).
+        function streamSend(payload, thinking) {
+            return new Promise(function (resolve, reject) {
+                if (!window.fetch || !window.ReadableStream) {
+                    reject(new Error('stream qo\'llab-quvvatlanmaydi'));
+                    return;
+                }
+                var started = false;
+                var acc = '';
+                fetch(STREAM_ENDPOINT, {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': csrfToken(),
+                    },
+                    body: JSON.stringify(payload),
+                }).then(function (r) {
+                    if (!r.ok || !r.body) {
+                        reject(new Error('stream http ' + r.status));
+                        return;
+                    }
+                    var reader = r.body.getReader();
+                    var dec = new TextDecoder();
+                    var buf = '';
+                    function pump() {
+                        return reader.read().then(function (res) {
+                            if (res.done) { resolve(); return; }
+                            buf += dec.decode(res.value, { stream: true });
+                            var parts = buf.split('\n\n');
+                            buf = parts.pop();
+                            parts.forEach(function (block) {
+                                var line = block.replace(/^data: ?/, '').trim();
+                                if (!line) { return; }
+                                var msg;
+                                try { msg = JSON.parse(line); } catch (e) { return; }
+                                if (msg.type === 'token') {
+                                    started = true;
+                                    acc += msg.text || '';
+                                    thinking.innerHTML = renderMarkdown(acc);
+                                    scrollDown();
+                                } else if (msg.type === 'final') {
+                                    started = true;
+                                    applyFinal(thinking, msg);
+                                } else if (msg.type === 'error') {
+                                    started = true;
+                                    thinking.innerHTML = '❌ Xatolik: ' +
+                                        esc(msg.message || 'xato');
+                                }
+                            });
+                            return pump();
+                        });
+                    }
+                    return pump();
+                }).catch(function (e) {
+                    // Ma'lumot kelgan bo'lsa — qayta urinmaymiz (resolve).
+                    if (started) { resolve(); } else { reject(e); }
+                });
+            });
+        }
+
         function sendQuery(text) {
             text = (text || '').trim();
             if (!text || state.busy) { return; }
@@ -491,56 +630,20 @@
                 '<span class="typing"><span></span><span></span><span></span></span>',
                 { raw: true });
 
-            fetch(ENDPOINT, {
-                method: 'POST',
-                credentials: 'same-origin',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': csrfToken(),
-                },
-                body: JSON.stringify({
-                    message: text,
-                    manager_id: 0,
-                    source: window.__crmSource || '',
-                    is_voice: !!state.aiVoiceMode,
-                }),
-            })
-                .then(function (r) {
-                    return r.json().then(function (j) { return { ok: r.ok, data: j }; });
-                })
-                .then(function (res) {
-                    if (!res.ok) { throw new Error((res.data && res.data.error) || 'Xatolik'); }
-                    var data = res.data || {};
-                    var html = renderMarkdown(data.answer || '');
-                    if (data.sources && data.sources.length) {
-                        html += '<div class="sources">📎 Manba: ' +
-                                data.sources.map(function (s) {
-                                    var d = document.createElement('span');
-                                    d.textContent = s;
-                                    return d.innerHTML;
-                                }).join(', ') + '</div>';
-                    }
-                    thinking.innerHTML = html;
+            var payload = {
+                message: text,
+                manager_id: 0,
+                source: window.__crmSource || '',
+                is_voice: !!state.aiVoiceMode,
+            };
 
-                    var charts = Array.isArray(data.charts) ? data.charts : [];
-                    charts.forEach(function (spec) { appendChart(thinking, spec); });
-
-                    var cmds = Array.isArray(data.commands) ? data.commands : [];
-                    cmds.forEach(function (cmd) {
-                        var ok = dispatchCommand(cmd);
-                        appendCommandPill(thinking, cmd, ok);
-                    });
-
-                    if (data.message_id && window.buildChatFeedback) {
-                        thinking.appendChild(window.buildChatFeedback(data.message_id));
-                    }
-
-                    pushHistory('ai', data.answer || '');
-                    scrollDown();
-                })
+            // Avval SSE stream; ma'lumot kelishidan oldin xato bo'lsa — oddiy
+            // endpoint'ga qaytamiz (chat hech qachon buzilmaydi).
+            streamSend(payload, thinking)
+                .catch(function () { return plainSend(payload, thinking); })
                 .catch(function (e) {
                     thinking.innerHTML = '❌ Xatolik: ' +
-                        (function () { var d = document.createElement('span'); d.textContent = e.message; return d.innerHTML; })();
+                        esc(e && e.message ? e.message : e);
                 })
                 .finally(function () {
                     state.busy = false;
@@ -994,8 +1097,8 @@
 
                     var cmds = Array.isArray(data.commands) ? data.commands : [];
                     cmds.forEach(function (cmd) {
-                        var ok = dispatchCommand(cmd);
-                        appendCommandPill(thinking, cmd, ok);
+                        var status = dispatchCommand(cmd);
+                        appendCommandPill(thinking, cmd, status);
                     });
 
                     pushHistory('ai', data.answer || '');

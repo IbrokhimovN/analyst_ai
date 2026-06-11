@@ -10,9 +10,10 @@ logger = logging.getLogger(__name__)
 MAX_ITERATIONS = 8
 
 _SYSTEM_PROMPT = """Siz savdo bo'limining professional AI tahlilchisisiz.
-Sizga dashboard ma'lumotlarini qaytaruvchi tool'lar berilgan. Avval
-kerakli tool'larni chaqirib ma'lumotlarni yig'ing, keyin tahlil qiling.
-Trend va sabab uchun `period_comparison` va `change_drivers` tool'laridan
+Sizga `get_analytics(view=...)` tool'i berilgan — kerakli kesimni `view`
+orqali oling (summary, managers, funnel, loss, comparison, change_drivers
+va h.k.). Avval kerakli kesimlarni yig'ing, keyin tahlil qiling.
+Trend va sabab uchun `view='comparison'` va `view='change_drivers'` dan
 ham foydalaning (faqat hozirgi holat emas, o'zgarishni ham ko'rsating).
 
 Tahlil natijasi quyidagilarni o'z ichiga olishi shart:
@@ -32,203 +33,95 @@ bo'lsa buni ochiq ayting.
 
 Javobni o'zbek tilida, Markdown formatda, sarlavhalar bilan bering."""
 
-def _build_tools(source=None, period=None):
-    from langchain_core.tools import Tool
+_ANALYTICS_VIEWS = (
+    'summary', 'managers', 'funnel', 'conversions', 'daily', 'loss',
+    'followup', 'best_days', 'comparison', 'forecast', 'change_drivers',
+    'sales_cycle', 'stuck_deals', 'source_compare', 'pipelines',
+)
 
+def _analytics_data(view, source=None, period=None):
+    """view nomidan tegishli AnalyticsService chaqiruvini bajaradi."""
     svc = AnalyticsService()
-
-    def _summary(_input: str = '') -> str:
-        return json.dumps(svc.get_summary(source=source, period=period),
-                          ensure_ascii=False)
-
-    def _managers(_input: str = '') -> str:
-        return json.dumps(svc.get_by_manager(source=source, period=period),
-                          ensure_ascii=False)
-
-    def _funnel(_input: str = '') -> str:
-        return json.dumps({
-            'funnel': svc.get_sales_funnel(source, period),
-            'conversions': svc.get_conversions(source, period),
-        }, ensure_ascii=False)
-
-    def _loss(_input: str = '') -> str:
-        return json.dumps(svc.get_loss_reasons(source=source, period=period),
-                          ensure_ascii=False)
-
-    def _conversions(_input: str = '') -> str:
-        return json.dumps(svc.get_conversions(source, period),
-                          ensure_ascii=False)
-
-    def _daily(_input: str = '') -> str:
-        return json.dumps(svc.get_daily_dynamics(source=source),
-                          ensure_ascii=False)
-
-    def _followup(_input: str = '') -> str:
+    if view == 'summary':
+        return svc.get_summary(source=source, period=period)
+    if view == 'managers':
+        return svc.get_by_manager(source=source, period=period)
+    if view == 'funnel':
+        return {'funnel': svc.get_sales_funnel(source, period),
+                'conversions': svc.get_conversions(source, period)}
+    if view == 'conversions':
+        return svc.get_conversions(source, period)
+    if view == 'daily':
+        return svc.get_daily_dynamics(source=source)
+    if view == 'loss':
+        return svc.get_loss_reasons(source=source, period=period)
+    if view == 'followup':
         managers = svc.get_by_manager(source=source, period=period)
-        rows = [m for m in managers if m.get('lost')][:10] or managers[:10]
-        return json.dumps(rows, ensure_ascii=False)
+        return [m for m in managers if m.get('lost')][:10] or managers[:10]
+    if view == 'best_days':
+        return svc.get_best_days(source=source, period=period)
+    if view == 'comparison':
+        return svc.compare_periods(source=source, period=period)
+    if view == 'forecast':
+        return svc.forecast(source=source)
+    if view == 'change_drivers':
+        return svc.explain_change(source=source, period=period)
+    if view == 'sales_cycle':
+        return svc.get_sales_cycle(source=source, period=period)
+    if view == 'stuck_deals':
+        return svc.get_stuck_deals(source=source, days_idle=14)
+    if view == 'source_compare':
+        return svc.get_source_compare(period=period)
+    if view == 'pipelines':
+        return svc.get_pipeline_breakdown(source=source, period=period)
+    return {'error': f'noma\'lum view: {view}'}
 
-    def _best_days(_input: str = '') -> str:
-        return json.dumps(svc.get_best_days(source=source, period=period),
+_ANALYTICS_VIEW_DOC = (
+    'Qaysi kesim kerakligini tanlang (bittadan, kerak bo\'lsa bir nechta marta '
+    'chaqiring):\n'
+    '• summary — umumiy KPI (jami/yangi lidlar, sotuv/yutqazish, konversiya, tushum, o\'rtacha chek).\n'
+    '• managers — har menejer statistikasi (lidlar, call, sotuv, konversiya, tushum); kim past/yuqori.\n'
+    '• funnel — voronka bosqichlari (Lid→Call→Conversation→Sotuv) va konversiyalar; zaif bosqich.\n'
+    '• conversions — asosiy konversiya nisbatlari (Call→Convo, Convo→Sale, Lid→Sale).\n'
+    '• daily — kunlik dinamika (har kun lid/sotuv/konversiya).\n'
+    '• loss — yutqazish sabablari va soni.\n'
+    '• followup — menejerlar kesimida qoldirilgan/yutqazgan lidlar.\n'
+    '• best_days — hafta kunlari bo\'yicha samaradorlik.\n'
+    '• comparison — joriy davr vs xuddi shu uzunlikdagi OLDINGI davr (farq + foiz). "o\'tgan oyga nisbatan", "o\'sdimi/tushdimi".\n'
+    '• forecast — oy oxirigacha proyeksiya va kunlik temp. "oy oxirida qancha", "rejaga yetamizmi".\n'
+    '• change_drivers — o\'zgarishga eng ko\'p hissa qo\'shgan menejerlar. "nega tushdi/o\'sdi", "kim sababchi".\n'
+    '• sales_cycle — o\'rtacha sotuv sikli (necha kunda yopiladi): o\'rtacha/median/min/max.\n'
+    '• stuck_deals — 14 kun harakatsiz ochiq lidlar (follow-up). "qotib qolgan", "tashlab qo\'yilgan".\n'
+    '• source_compare — AmoCRM vs Bitrix yonma-yon.\n'
+    '• pipelines — har pipeline (category) kesimi: leadlar, sotuv, yutqazish, konversiya.'
+)
+
+def _build_tools(source=None, period=None):
+    from langchain_core.tools import StructuredTool
+    from pydantic import BaseModel, Field
+
+    def _get_analytics(view: str = 'summary') -> str:
+        v = (view or '').strip().lower()
+        if v not in _ANALYTICS_VIEWS:
+            return (f'Xato: noma\'lum view "{view}". Mavjud: '
+                    f'{", ".join(_ANALYTICS_VIEWS)}.')
+        return json.dumps(_analytics_data(v, source, period),
                           ensure_ascii=False)
 
-    def _compare(_input: str = '') -> str:
-        return json.dumps(svc.compare_periods(source=source, period=period),
-                          ensure_ascii=False)
-
-    def _forecast(_input: str = '') -> str:
-        return json.dumps(svc.forecast(source=source), ensure_ascii=False)
-
-    def _change(_input: str = '') -> str:
-        return json.dumps(svc.explain_change(source=source, period=period),
-                          ensure_ascii=False)
-
-    def _cycle(_input: str = '') -> str:
-        return json.dumps(svc.get_sales_cycle(source=source, period=period),
-                          ensure_ascii=False)
-
-    def _stuck(_input: str = '') -> str:
-        return json.dumps(svc.get_stuck_deals(source=source, days_idle=14),
-                          ensure_ascii=False)
-
-    def _src_compare(_input: str = '') -> str:
-        return json.dumps(svc.get_source_compare(period=period),
-                          ensure_ascii=False)
-
-    def _pipelines(_input: str = '') -> str:
-        return json.dumps(svc.get_pipeline_breakdown(source=source, period=period),
-                          ensure_ascii=False)
+    class _AnalyticsArgs(BaseModel):
+        view: str = Field(default='summary', description=_ANALYTICS_VIEW_DOC)
 
     return [
-        Tool(
-            name='dashboard_summary',
-            func=_summary,
+        StructuredTool.from_function(
+            func=_get_analytics,
+            name='get_analytics',
             description=(
-                'Umumiy savdo ko\'rsatkichlari: jami lidlar, yangi lidlar, '
-                'yutilgan/yutqazilgan bitimlar, konversiya foizi, umumiy tushum, '
-                'o\'rtacha chek. Argumentsiz chaqiriladi.'
+                'Dashboard analitik ma\'lumotlarini qaytaradi. `view` parametri '
+                'orqali kerakli kesimni tanlang (summary, managers, funnel, '
+                'comparison, forecast, stuck_deals va h.k.). Bir nechta kesim '
+                'kerak bo\'lsa tool\'ni har biri uchun alohida chaqiring.'
             ),
-        ),
-        Tool(
-            name='manager_performance',
-            func=_managers,
-            description=(
-                'Har bir menejer bo\'yicha statistika: lidlar soni, calllar, '
-                'conversationlar, sotuvlar, konversiya foizi, tushum. '
-                'Qaysi menejer past ishlayotganini aniqlash uchun. Argumentsiz.'
-            ),
-        ),
-        Tool(
-            name='sales_funnel',
-            func=_funnel,
-            description=(
-                'Sotuv voronkasi bosqichlari (Lid → Call → Conversation → Sotuv) '
-                'va ular orasidagi konversiyalar. Voronkaning zaif bosqichini '
-                'aniqlash uchun. Argumentsiz chaqiriladi.'
-            ),
-        ),
-        Tool(
-            name='loss_reasons',
-            func=_loss,
-            description=(
-                'Bitimlarni yutqazish sabablari va ularning soni. '
-                'Argumentsiz chaqiriladi.'
-            ),
-        ),
-        Tool(
-            name='conversions_data',
-            func=_conversions,
-            description=(
-                'Asosiy konversiya nisbatlari: Call→Conversation, '
-                'Conversation→Sale, Lid→Sale. Argumentsiz chaqiriladi.'
-            ),
-        ),
-        Tool(
-            name='daily_dynamics',
-            func=_daily,
-            description=(
-                'Kunlik dinamika — har kun bo\'yicha lidlar, sotuvlar va '
-                'konversiya foizi. Argumentsiz chaqiriladi.'
-            ),
-        ),
-        Tool(
-            name='followup_data',
-            func=_followup,
-            description=(
-                'Follow-up — menejerlar bo\'yicha qoldirilgan/yutqazgan va '
-                'qayta yopilgan bitimlar. Argumentsiz chaqiriladi.'
-            ),
-        ),
-        Tool(
-            name='best_days_data',
-            func=_best_days,
-            description=(
-                'Hafta kunlari bo\'yicha eng samarali kunlar. Argumentsiz.'
-            ),
-        ),
-        Tool(
-            name='period_comparison',
-            func=_compare,
-            description=(
-                'Joriy davrni xuddi shu uzunlikdagi OLDINGI davr bilan '
-                'taqqoslaydi: leadlar, sotuvlar, tushum, konversiya — har biri '
-                'uchun farq va foiz o\'zgarish (o\'sdi/tushdi). "O\'tgan hafta/oyga '
-                'nisbatan qanday", "o\'sdimi yoki tushdimi" savollari uchun. Argumentsiz.'
-            ),
-        ),
-        Tool(
-            name='forecast_data',
-            func=_forecast,
-            description=(
-                'Joriy oy sur\'ati asosida oy oxirigacha PROYEKSIYA (kutilayotgan '
-                'leadlar, sotuvlar, tushum) va kunlik temp. "Oy oxirida qancha '
-                'bo\'ladi", "rejaga yetamizmi", "prognoz" savollari uchun. Argumentsiz.'
-            ),
-        ),
-        Tool(
-            name='change_drivers',
-            func=_change,
-            description=(
-                'Joriy vs oldingi davr sotuvlar o\'zgarishiga eng ko\'p hissa '
-                'qo\'shgan menejerlar (kim ko\'tardi, kim tushirdi). "Nega tushdi/'
-                'o\'sdi", "kim sababchi" savollari uchun. Argumentsiz.'
-            ),
-        ),
-        Tool(
-            name='sales_cycle_data',
-            func=_cycle,
-            description=(
-                'Yutilgan bitimlarda o\'rtacha sotuv sikli (lid ochilishidan '
-                'yopilgunigacha kun): o\'rtacha, median, min/max. "Qancha kunda '
-                'sotamiz", "sotuv tezligi" savollari uchun. Argumentsiz.'
-            ),
-        ),
-        Tool(
-            name='stuck_deals_data',
-            func=_stuck,
-            description=(
-                '14 kundan beri harakatsiz turgan OCHIQ lidlar, menejer kesimida '
-                '(follow-up kerak bo\'lganlar). "Qotib qolgan", "tashlab qo\'yilgan", '
-                '"e\'tiborsiz lidlar" savollari uchun. Argumentsiz.'
-            ),
-        ),
-        Tool(
-            name='source_comparison',
-            func=_src_compare,
-            description=(
-                'AmoCRM va Bitrix manbalarini yonma-yon taqqoslaydi (har biri '
-                'uchun leadlar, sotuv, konversiya). "AmoCRM vs Bitrix", "qaysi '
-                'manba yaxshi" savollari uchun. Argumentsiz.'
-            ),
-        ),
-        Tool(
-            name='pipeline_breakdown',
-            func=_pipelines,
-            description=(
-                'Har bir pipeline (voronka/category) bo\'yicha kesim: leadlar, '
-                'sotuv, yutqazish, konversiya. "Qaysi voronka yaxshi", "pipeline '
-                'bo\'yicha" savollari uchun. Argumentsiz.'
-            ),
+            args_schema=_AnalyticsArgs,
         ),
     ]
 
@@ -274,54 +167,28 @@ ASOSIY QOIDALAR (qat'iy)
 ══════════════════════════════════════════════════════════════════════════
 MA'LUMOT TOOL'LARI (qachon chaqirish)
 ══════════════════════════════════════════════════════════════════════════
-• `dashboard_summary` — umumiy ko'rsatkichlar (lidlar, sotuv, tushum, KPI).
-   Savollar: "umumiy holat", "qanday natijalar", "kpi", "tushum qancha".
+Asosiy tool — `get_analytics(view=...)`. Kerakli kesimni `view` orqali oling.
+Bir nechta kesim kerak bo'lsa har biri uchun alohida chaqiring. view qiymatlari:
 
-• `manager_performance` — menejerlar reytingi (kim qancha sotgan).
-   Savollar: "eng yaxshi menejer", "kim past ishlayapti", "menejer X qancha".
+• summary — umumiy KPI (lidlar, sotuv, tushum). "umumiy holat", "kpi", "tushum".
+• managers — menejerlar reytingi. "eng yaxshi/past menejer", "menejer X qancha".
+• funnel — Lid→Call→Conversation→Sotuv bosqichlari. "voronka", "qayerda yo'qoladi".
+• conversions — konversiya nisbatlari. "call→sale", "lid→sale".
+• daily — kunlik dinamika. "kunlik tendensiya", "oxirgi 7 kun".
+• loss — yutqazish sabablari. "nega sotib olmaganlar", "sabablari".
+• followup — qoldirilgan/yutqazgan lidlar (menejer kesimida).
+• best_days — hafta kunlari samaradorligi. "qaysi kuni yaxshi".
+• comparison — joriy vs oldingi davr (farq+foiz). "o'tgan oyga nisbatan", "o'sdimi".
+• forecast — oy oxirigacha proyeksiya. "oy oxirida qancha", "rejaga yetamizmi".
+• change_drivers — o'zgarishga hissa qo'shgan menejerlar. "nega tushdi", "kim sababchi".
+• sales_cycle — o'rtacha sotuv sikli. "qancha kunda sotamiz", "sotuv tezligi".
+• stuck_deals — 14 kun harakatsiz ochiq lidlar. "qotib qolgan", "tashlab qo'yilgan".
+• source_compare — AmoCRM vs Bitrix. "qaysi manba yaxshi".
+• pipelines — har pipeline (category) kesimi. "qaysi voronka yaxshi".
 
-• `sales_funnel` — Lid→Call→Conversation→Sotuv bosqichlari va konversiyalar.
-   Savollar: "voronka", "qaysi bosqichda mijoz yo'qoladi", "tushish foizi".
-
-• `conversions_data` — asosiy konversiya nisbatlari.
-   Savollar: "konversiya foizi", "call→sale", "lid→sale nisbati".
-
-• `daily_dynamics` — kun bo'yicha lid/sotuv/konversiya dinamikasi.
-   Savollar: "kunlik tendensiya", "oxirgi 7 kun", "qaysi kun yaxshi edi".
-
-• `loss_reasons` — bitimlarni yutqazish sabablari (sotib olmadi).
-   Savollar: "nega sotib olmaganlar", "sabablari", "qaytarish ko'rsatkichlari".
-
-• `followup_data` — qoldirilgan/yutqazgan lidlar, menejer kesimida.
-   Savollar: "kim follow-up qilmagan", "qoldirilgan mijozlar".
-
-• `best_days_data` — hafta kunlari bo'yicha samaradorlik.
-   Savollar: "qaysi kuni yaxshi sotamiz", "dushanba/juma qanday".
-
-• `period_comparison` — joriy davr vs oldingi davr (farq + foiz).
-   Savollar: "o'tgan oyga nisbatan", "o'sdimi tushdimi", "qancha % o'zgardi".
-
-• `forecast_data` — oy oxirigacha proyeksiya, kunlik temp.
-   Savollar: "oy oxirida qancha bo'ladi", "rejaga yetamizmi", "prognoz".
-
-• `change_drivers` — o'zgarishga eng ko'p hissa qo'shgan menejerlar.
-   Savollar: "nega tushdi/o'sdi", "kim sababchi", "kim ko'tardi".
-
-• `sales_cycle_data` — o'rtacha sotuv sikli (necha kunda yopiladi).
-   Savollar: "qancha kunda sotamiz", "sotuv tezligi", "sikl uzunligi".
-
-• `stuck_deals_data` — 14 kun harakatsiz ochiq lidlar (follow-up).
-   Savollar: "qotib qolgan lidlar", "tashlab qo'yilgan", "e'tiborsiz".
-
-• `source_comparison` — AmoCRM vs Bitrix yonma-yon.
-   Savollar: "amocrm vs bitrix", "qaysi manba yaxshi".
-
-• `pipeline_breakdown` — har voronka (category) bo'yicha kesim.
-   Savollar: "qaysi voronka yaxshi", "pipeline bo'yicha".
-
+Alohida tool'lar:
 • `manager_detail` — BITTA menejer chuqur profili (ism yoki ID bilan).
    Savollar: "Aziza qanday ishlayapti", "falonchi haqida batafsil".
-
 • `query_leads` — erkin filtrlangan lid ro'yxati (status/menejer/sana/narx).
    Savollar: "Azizning ochiq lidlari", "may oyida yutqazilganlar".
 
@@ -377,29 +244,13 @@ ishlatiladi.
         * `refresh_dashboard` — dashboard'ni yangilash.
         * `open_ai_panel` — kartaning AI tahlil panelini ochish.
      - `card` — karta kaliti (yuqoridagi 8 ta dan biri).
-     - `view_type` — **43 ta canonical tur** mavjud (har biri haqiqatan
-       chiziladi):
-       • **Bar oilasi (9)**: barChart, columnChart, groupedBar, stackedBar,
-         horizontalBar, horizontalStackedBar, percentBar, rangeBar, bulletChart.
-       • **Line/Area oilasi (14)**: lineChart, areaChart, stackedArea,
-         streamGraph, stepChart, bumpChart, sparkline, smoothLine,
-         straightLine, dashedLine, multiLine, pointLine, smoothArea,
-         percentArea.
-       • **Pie/Radial (11)**: pieChart, doughnutChart, halfPie, halfDoughnut,
-         semicircleDoughnut, gaugeChart, polarArea, nightingaleRose,
-         waffleChart, sunburst, marimekko.
-       • **Distribution (5)**: histogram, boxPlot, violinPlot, dotPlot,
-         densityChart.
-       • **Scatter/Correlation (7)**: scatterPlot, bubbleChart,
-         connectedScatter, jitterScatter, bubbleHeatmap, heatmap,
-         correlationMatrix.
-       • **Radar/Spider (4)**: radarChart, spiderChart, filledRadar, multiRadar.
-       • **Geo (4)**: choroplethMap, bubbleMap, flowMap, geoHeatmap.
-       • **Flow/Hierarchy (5)**: sankeyDiagram, funnelChart, waterfallChart,
-         ganttChart, treemap.
-       • **Network (3)**: networkGraph, chordDiagram, arcDiagram.
-       • **Display/KPI (5)**: kpiCard, metricTile, progressBar, table,
-         numberCards.
+     - `view_type` — 43 ta canonical tur mavjud. Eng ko'p ishlatiladigani:
+       barChart, columnChart, horizontalBar, stackedBar, lineChart, areaChart,
+       stackedArea, pieChart, doughnutChart, polarArea, gaugeChart, radarChart,
+       scatterPlot, bubbleChart, heatmap, histogram, funnelChart, sankeyDiagram,
+       waterfallChart, treemap, kpiCard, table. (Boshqa variantlar ham bor —
+       bar/line/area/pie/radar/scatter/geo/flow oilalari; noto'g'ri nom bersangiz
+       tizim mos turga tushiradi.)
      - `metric` — asosiy sonli maydon (managers uchun 'revenue'/'won'/'calls',
        funnel uchun 'count'/'pct' va h.k.).
      - `metrics` — bir nechta birga ko'rsatish kerak bo'lsa massiv.
@@ -548,7 +399,8 @@ OVOZLI REJIM (foydalanuvchi mikrofondan so'radi) — QAT'IY QOIDALAR
 
 
 def chat_with_agent(question: str, manager_id: int = 0,
-                    source=None, period=None, is_voice: bool = False) -> dict:
+                    source=None, period=None, is_voice: bool = False,
+                    callbacks=None) -> dict:
     from langchain.agents import AgentExecutor, create_tool_calling_agent
     from langchain.prompts import ChatPromptTemplate, MessagesPlaceholder
     from langchain_core.tools import StructuredTool
@@ -735,7 +587,7 @@ def chat_with_agent(question: str, manager_id: int = 0,
         mid = _resolve_manager(manager)
         if mid is None:
             return (f'Xato: "{manager}" menejer topilmadi. To\'liq ism yoki ID '
-                    'bering, yoki manager_performance bilan ro\'yxatni oling.')
+                    'bering, yoki get_analytics(view=\'managers\') bilan ro\'yxatni oling.')
         return json.dumps(
             detail_svc.get_manager_detail(mid, source=source, period=period),
             ensure_ascii=False)
@@ -838,21 +690,35 @@ def chat_with_agent(question: str, manager_id: int = 0,
     )
     system_prompt = (_CHAT_SYSTEM_PROMPT + date_header +
                      (_VOICE_MODE_SUFFIX if is_voice else ''))
+    # Anthropic prompt caching: ulkan (~280 qatorli) system prompt'ni keshlaymiz,
+    # shunda agent loop'ning har iteratsiyasida u qayta o'qilmaydi (tezroq + arzon).
+    from langchain_core.messages import SystemMessage
+    system_msg = SystemMessage(content=[{
+        'type': 'text',
+        'text': system_prompt,
+        'cache_control': {'type': 'ephemeral'},
+    }])
     prompt = ChatPromptTemplate.from_messages([
-        ('system', system_prompt),
+        system_msg,
         MessagesPlaceholder('history'),
         ('human', '{input}'),
         MessagesPlaceholder('agent_scratchpad'),
     ])
 
-    agent = create_tool_calling_agent(get_llm(temperature=0.3), tools, prompt)
+    # temperature=0 — raqamli/tool ishida deterministik va ishonchli javob.
+    # callbacks berilsa (SSE stream) — streaming LLM ishlatamiz, shunda yakuniy
+    # javob token-token oqib chiqadi (on_llm_new_token).
+    llm = get_llm(temperature=0, streaming=bool(callbacks))
+    agent = create_tool_calling_agent(llm, tools, prompt)
     executor = AgentExecutor(
         agent=agent, tools=tools, max_iterations=MAX_ITERATIONS,
         handle_parsing_errors=True, return_intermediate_steps=True,
         verbose=False,
     )
 
-    result = executor.invoke({'input': question, 'history': history_msgs})
+    invoke_cfg = {'callbacks': callbacks} if callbacks else None
+    result = executor.invoke({'input': question, 'history': history_msgs},
+                             config=invoke_cfg)
 
     output = result['output']
     if isinstance(output, list):
@@ -864,7 +730,7 @@ def chat_with_agent(question: str, manager_id: int = 0,
     steps = [getattr(a, 'tool', 'tool')
              for a, _ in result.get('intermediate_steps', [])]
 
-    if _is_action_intent(question) and not commands:
+    if _is_command_intent(question) and not commands:
         logger.warning(
             'Chat agent: foydalanuvchi harakat so\'radi lekin '
             'dashboard_command chaqirilmadi. Retry qilinmoqda. q=%r',
@@ -922,6 +788,36 @@ def _is_action_intent(text: str) -> bool:
         return False
     low = text.lower()
     return any(trigger in low for trigger in _ACTION_TRIGGERS)
+
+# Retry uchun TOR ro'yxat: faqat dashboard'ni o'zgartiruvchi (chart/karta/filter)
+# so'rovlar. Umumiy analitika fe'llari ("ko'rsat", "chiqar", "amocrm", "bitrix"...)
+# bu yerda YO'Q — chunki ular oddiy statistika savollarida ham uchraydi va butun
+# agentni keraksiz 2-marta ishlatib, javobni 2x sekinlashtirardi.
+_COMMAND_RETRY_TRIGGERS = (
+    # grafik / karta chizish
+    'grafik', 'chart', 'diagramma', 'chiz',
+    'pie qil', 'bar qil', 'line qil', 'doughnut qil', 'jadval qil',
+    'grafik qil', 'chart qil', 'pie chart', 'bar chart', 'line chart',
+    'karta qo\'sh', 'kartani', 'kartalarni', 'karta yarat', 'karta yasa',
+    'yetishmayotgan', 'olib tashla', 'kartani yashir', 'kartani ko\'rsat',
+    # filter (set_period / set_source)
+    'haftalik', 'oylik', 'kunlik', 'oraliq', 'filter',
+    'maydagi', 'iyundagi', 'iyuldagi', 'fevraldagi', 'martdagi',
+    'apreldagi', 'avgustdagi', 'sentyabrdagi', 'oktyabrdagi',
+    'noyabrdagi', 'dekabrdagi', 'yanvardagi',
+    'shu hafta', 'shu oy',
+)
+
+def _is_command_intent(text: str) -> bool:
+    """Faqat dashboard buyrug'i (chart/karta/filter) talab qiluvchi so'rovmi.
+
+    Bu retry qarori uchun ishlatiladi — umumiy analitika savollarini
+    qamramaydi, shu sabab keraksiz ikkilamchi agent run bo'lmaydi.
+    """
+    if not text:
+        return False
+    low = text.lower()
+    return any(trigger in low for trigger in _COMMAND_RETRY_TRIGGERS)
 
 _PERIOD_KEYWORDS = {
     'all': 'all', 'barcha': 'all', 'hammasi': 'all', 'jami': 'all',
@@ -1095,7 +991,7 @@ def run_agent_analysis(source=None, period=None) -> dict:
         MessagesPlaceholder('agent_scratchpad'),
     ])
 
-    agent = create_tool_calling_agent(get_llm(temperature=0.2), tools, prompt)
+    agent = create_tool_calling_agent(get_llm(temperature=0), tools, prompt)
     executor = AgentExecutor(
         agent=agent,
         tools=tools,
@@ -1284,49 +1180,32 @@ def _card_data(card, source=None, period=None):
     raise ValueError(f'Noma\'lum karta: {card}')
 
 def run_card_analysis(card, source=None, period=None) -> dict:
-    from langchain.agents import AgentExecutor, create_tool_calling_agent
-    from langchain.prompts import ChatPromptTemplate, MessagesPlaceholder
-
     meta = _CARD_FIELDS.get(card)
     if not meta:
         raise ValueError(f'Noma\'lum karta: {card}')
 
-    all_tools = _build_tools(source, period)
-    tools = [t for t in all_tools if t.name == meta['tool']] or all_tools
+    # Ma'lumotni kod orqali to'g'ridan-to'g'ri olamiz — agent tool tanlashi
+    # shart emas. Bu tezroq (bitta LLM chaqiruvi) va ishonchliroq (deterministik
+    # ma'lumot), 'finance' kartasini ham qamraydi.
+    data = _card_data(card, source=source, period=period)
 
     system_text = (
-        f'Siz savdo bo\'limining AI tahlilchisisiz. Sizga "{meta["label"]}" '
-        'kartasi uchun tool berilgan. Avval tool\'ni chaqirib ma\'lumotni '
-        'oling, keyin QISQA tahlil bering: 1) holatga baho, 2) asosiy '
-        'muammo yoki kuchli tomon, 3) 2-3 ta aniq amaliy tavsiya. '
-        'Javob o\'zbek tilida, Markdown formatda, 130 so\'zdan oshmasin.'
+        f'Siz savdo bo\'limining AI tahlilchisisiz. Quyida "{meta["label"]}" '
+        'kartasi ma\'lumoti (JSON) berilgan. Faqat shu raqamlardan foydalanib '
+        'QISQA tahlil bering: 1) holatga baho, 2) asosiy muammo yoki kuchli '
+        'tomon, 3) 2-3 ta aniq amaliy tavsiya. Javob o\'zbek tilida, Markdown '
+        'formatda, 130 so\'zdan oshmasin.\n\nMA\'LUMOT:\n'
+        + json.dumps(data, ensure_ascii=False)
     )
-    prompt = ChatPromptTemplate.from_messages([
-        ('system', system_text),
-        ('human', '{input}'),
-        MessagesPlaceholder('agent_scratchpad'),
-    ])
 
-    agent = create_tool_calling_agent(get_llm(temperature=0.2), tools, prompt)
-    executor = AgentExecutor(
-        agent=agent, tools=tools, max_iterations=4,
-        handle_parsing_errors=True, return_intermediate_steps=True,
-        verbose=False,
-    )
-    result = executor.invoke({
-        'input': f'"{meta["label"]}" kartasi ma\'lumotlarini tahlil qil.',
-    })
-
-    output = result['output']
+    output = get_llm(temperature=0).invoke(system_text).content
     if isinstance(output, list):
         output = '\n'.join(
             b.get('text', '') if isinstance(b, dict) else str(b)
             for b in output
         )
-    steps = [getattr(a, 'tool', 'tool')
-             for a, _ in result.get('intermediate_steps', [])]
-    logger.info('Karta tahlili tugadi: card=%s, %s tool', card, len(steps))
-    return {'analysis': output, 'steps': steps}
+    logger.info('Karta tahlili tugadi: card=%s (tool-siz)', card)
+    return {'analysis': output, 'steps': [card]}
 
 def _view_spec_schema(meta):
     return {

@@ -7,18 +7,21 @@ logger = logging.getLogger(__name__)
 _llm_cache = {}
 _embeddings_cache = None
 
-def get_llm(temperature: float = 0.3, max_tokens: int = 2000):
+def get_llm(temperature: float = 0.3, max_tokens: int = 2000,
+            streaming: bool = False):
     from langchain_anthropic import ChatAnthropic
 
-    key = (temperature, max_tokens)
+    key = (temperature, max_tokens, streaming)
     if key not in _llm_cache:
         _llm_cache[key] = ChatAnthropic(
             model=settings.LANGCHAIN_CLAUDE_MODEL,
             anthropic_api_key=settings.ANTHROPIC_API_KEY,
             temperature=temperature,
             max_tokens=max_tokens,
+            streaming=streaming,
         )
-        logger.info('ChatAnthropic yaratildi: %s', settings.LANGCHAIN_CLAUDE_MODEL)
+        logger.info('ChatAnthropic yaratildi: %s (streaming=%s)',
+                    settings.LANGCHAIN_CLAUDE_MODEL, streaming)
     return _llm_cache[key]
 
 def get_embeddings():

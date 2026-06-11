@@ -1331,6 +1331,10 @@
 
     window.addEventListener('dashboard:command', function (evt) {
         var cmd = (evt && evt.detail) || {};
+        // Bu listener mavjud = sahifa buyruqni qo'llay oladi (dashboard).
+        // Yuboruvchi (ai_chat_widget) shu bayroq orqali haqiqiy natijani biladi
+        // va aks holda buyruqni localStorage navbatiga qo'yadi.
+        cmd.__handled = true;
         var action = cmd.action;
         var card = cmd.card;
 
@@ -1442,6 +1446,20 @@
         });
 
         initDashBody();
+
+        // Boshqa sahifadan AI chat orqali so'ralgan buyruqlar localStorage
+        // navbatida turgan bo'lsa — endi dashboard ochildi, ularni qo'llaymiz.
+        try {
+            var PKEY = 'dash:pendingCommands';
+            var pend = JSON.parse(localStorage.getItem(PKEY) || '[]');
+            if (Array.isArray(pend) && pend.length) {
+                localStorage.removeItem(PKEY);
+                pend.forEach(function (c) {
+                    window.dispatchEvent(new CustomEvent('dashboard:command',
+                        { detail: c }));
+                });
+            }
+        } catch (e) {  }
 
         setInterval(function () {
             if (!state.busy && !hasActiveAI() &&
