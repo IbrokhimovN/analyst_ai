@@ -22,9 +22,9 @@ class AnalyticsService:
     def _parse_period(self, period):
         if not period:
             return None
-        days = self.PERIOD_DAYS.get(period)
-        if days:
-            return ('days', days)
+        if period in self.PERIOD_DAYS:
+            # kalendar davr: 'day'=bugun, 'week'=shu hafta, 'month'=shu oy
+            return ('cal', period)
         match = self._RANGE_RE.match(period) if isinstance(period, str) else None
         if match:
             try:
@@ -37,14 +37,29 @@ class AnalyticsService:
             return ('range', d1, d2)
         return None
 
+    def _calendar_bounds(self, name):
+        """Kalendar davr nomidan (start_date, end_date) — end har doim bugun.
+
+        day   → faqat bugun
+        week  → joriy ISO haftaning dushanbasidan bugungacha
+        month → joriy oyning 1-sanasidan bugungacha
+        """
+        today = timezone.localdate()
+        if name == 'week':
+            return today - timedelta(days=today.weekday()), today
+        if name == 'month':
+            return today.replace(day=1), today
+        return today, today  # 'day'
+
     def _base_queryset(self, source=None, period=None):
         qs = Lead.objects.all()
         if source:
             qs = qs.filter(source=source)
         parsed = self._parse_period(period)
-        if parsed and parsed[0] == 'days':
-            start = timezone.now() - timedelta(days=parsed[1])
-            qs = qs.filter(created_at__gte=start)
+        if parsed and parsed[0] == 'cal':
+            start, end = self._calendar_bounds(parsed[1])
+            qs = qs.filter(created_at__date__gte=start,
+                           created_at__date__lte=end)
         elif parsed and parsed[0] == 'range':
             qs = qs.filter(created_at__date__gte=parsed[1],
                            created_at__date__lte=parsed[2])
@@ -493,13 +508,12 @@ class AnalyticsService:
 
     def _period_window(self, period):
         """period → (start_date, end_date). None/'all' → oxirgi 30 kun."""
-        today = timezone.now().date()
+        today = timezone.localdate()
         parsed = self._parse_period(period)
         if parsed and parsed[0] == 'range':
             return parsed[1], parsed[2]
-        if parsed and parsed[0] == 'days':
-            days = parsed[1]
-            return today - timedelta(days=days - 1), today
+        if parsed and parsed[0] == 'cal':
+            return self._calendar_bounds(parsed[1])
         # None yoki 'all' — taqqoslash uchun oxirgi 30 kun
         return today - timedelta(days=29), today
 
